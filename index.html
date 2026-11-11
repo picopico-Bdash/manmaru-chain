@@ -1,0 +1,1315 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>まんまるチェイン</title>
+<style>
+:root{
+  --bg-top:#fff1e6;
+  --bg-bot:#ffe0ee;
+  --panel:#ffffff;
+  --panel-edge:#ffd9e8;
+  --ink:#5a4238;
+  --ink-soft:#9c8177;
+  --accent:#ff6fa0;
+  --accent-soft:#ffd1e2;
+  --well:#fff8f3;
+  --well-edge:#ffcfe0;
+  --shadow:0 10px 24px -12px rgba(180,90,120,0.35);
+  --c-pink:#ff8fb3;
+  --c-pink-d:#e85f8e;
+  --c-blue:#6cc8ff;
+  --c-blue-d:#2f9fe8;
+  --c-yellow:#ffd76a;
+  --c-yellow-d:#f0a92e;
+  --c-green:#8fe3a6;
+  --c-green-d:#4fbf72;
+  --btn:#ffffff;
+  --btn-ink:#c9698e;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg-top:#2a1f3d;
+    --bg-bot:#3a2247;
+    --panel:#3a2b4d;
+    --panel-edge:#553a63;
+    --ink:#f4e9f7;
+    --ink-soft:#c6afd4;
+    --accent:#ff9dc0;
+    --accent-soft:#5c3a55;
+    --well:#241a34;
+    --well-edge:#54395f;
+    --shadow:0 10px 26px -12px rgba(0,0,0,0.55);
+    --btn:#4a3760;
+    --btn-ink:#ffcfe2;
+  }
+}
+:root[data-theme="dark"]{
+  --bg-top:#2a1f3d;
+  --bg-bot:#3a2247;
+  --panel:#3a2b4d;
+  --panel-edge:#553a63;
+  --ink:#f4e9f7;
+  --ink-soft:#c6afd4;
+  --accent:#ff9dc0;
+  --accent-soft:#5c3a55;
+  --well:#241a34;
+  --well-edge:#54395f;
+  --shadow:0 10px 26px -12px rgba(0,0,0,0.55);
+  --btn:#4a3760;
+  --btn-ink:#ffcfe2;
+}
+*{box-sizing:border-box;}
+html{background:#7cc4ef;}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-1;
+  background:url("bg/meadow.webp") center 70% / cover no-repeat, #7cc4ef;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) body::before{
+    background:linear-gradient(rgba(20,10,40,0.45),rgba(20,10,40,0.45)), url("bg/meadow.webp") center 70% / cover no-repeat, #1e2a40;
+  }
+}
+:root[data-theme="dark"] body::before{
+  background:linear-gradient(rgba(20,10,40,0.45),rgba(20,10,40,0.45)), url("bg/meadow.webp") center 70% / cover no-repeat, #1e2a40;
+}
+header > div, .hint, footer{
+  background:rgba(255,255,255,0.72);
+  backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border-radius:14px;
+  padding:6px 14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) header > div,
+  :root:not([data-theme="light"]) .hint,
+  :root:not([data-theme="light"]) footer{ background:rgba(40,28,60,0.72); }
+}
+:root[data-theme="dark"] header > div, :root[data-theme="dark"] .hint, :root[data-theme="dark"] footer{ background:rgba(40,28,60,0.72); }
+.hint, footer{ align-self:center; }
+body{
+  background:transparent;
+  color:var(--ink);
+  font-family:"Nunito","M PLUS Rounded 1c","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  min-height:100%;
+  display:flex;
+  justify-content:center;
+}
+.page{
+  width:100%;
+  max-width:760px;
+  padding:18px 16px 28px;
+  display:flex;
+  flex-direction:column;
+  gap:14px;
+}
+h1{
+  font-family:"Baloo 2","M PLUS Rounded 1c",sans-serif;
+  font-size:clamp(24px,6vw,34px);
+  margin:0;
+  color:var(--accent);
+  letter-spacing:0.02em;
+  text-wrap:balance;
+  text-shadow:0 2px 0 rgba(255,255,255,0.5);
+}
+.tagline{
+  margin:2px 0 0;
+  font-size:13px;
+  color:var(--ink-soft);
+  font-weight:700;
+}
+header{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.theme-note{font-size:0}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) .board-wrap{ background:rgba(36,26,52,0.42); }
+}
+:root[data-theme="dark"] .board-wrap{ background:rgba(36,26,52,0.42); }
+.layout{
+  display:flex;
+  gap:16px;
+  align-items:flex-start;
+  flex-wrap:wrap;
+  justify-content:center;
+}
+/* 広い画面: 盤面を画面の真ん中に、サイドパネルはその右に */
+@media (min-width: 900px){
+  .page{ max-width:1200px; }
+  .layout{
+    display:grid;
+    grid-template-columns:1fr auto 1fr;
+    align-items:start;
+  }
+  .board-wrap{ grid-column:2; }
+  .side{ grid-column:3; justify-self:start; }
+}
+body{ align-items:center; min-height:100vh; }
+.board-wrap{
+  position:relative;
+  background:rgba(255,250,246,0.38);
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
+  border:3px solid rgba(255,207,224,0.85);
+  border-radius:22px;
+  box-shadow:var(--shadow);
+  padding:10px;
+  flex:0 0 auto;
+  touch-action:none;
+}
+canvas#board{
+  display:block;
+  border-radius:14px;
+  width:min(88vw, calc((100vh - 56px) / 2), 460px);
+  height:calc(min(88vw, calc((100vh - 56px) / 2), 460px) * 2);
+  background:linear-gradient(180deg,rgba(255,255,255,0.5),rgba(255,255,255,0));
+}
+.overlay{
+  position:absolute;
+  inset:10px;
+  border-radius:14px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+  gap:10px;
+  background:rgba(60,30,45,0.55);
+  backdrop-filter:blur(2px);
+  color:#fff;
+  text-align:center;
+  padding:16px;
+}
+.overlay[hidden]{display:none!important;}
+.overlay h2{
+  font-family:"Baloo 2",sans-serif;
+  font-size:26px;
+  margin:0;
+}
+.overlay p{margin:0;font-size:14px;opacity:0.9;}
+.overlay button{
+  margin-top:6px;
+}
+.side{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  width:180px;
+  flex:0 0 auto;
+}
+@media (max-width:520px){
+  .layout{flex-direction:column;align-items:center;}
+  .side{
+    width:100%;
+    max-width:300px;
+    flex-direction:row;
+    flex-wrap:wrap;
+  }
+  .side .panel{flex:1 1 130px;}
+}
+.panel{
+  background:var(--panel);
+  border:2px solid var(--panel-edge);
+  border-radius:16px;
+  padding:12px 14px;
+  box-shadow:var(--shadow);
+}
+.panel .label{
+  font-size:11px;
+  font-weight:800;
+  color:var(--ink-soft);
+  letter-spacing:0.08em;
+  text-transform:uppercase;
+  margin:0 0 4px;
+}
+.panel .value{
+  font-family:"Baloo 2",sans-serif;
+  font-size:26px;
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+  line-height:1.1;
+}
+.panel .value.small{font-size:18px;}
+#nextCanvas{
+  display:block;
+  margin:2px auto 0;
+  width:84px;
+  height:84px;
+}
+.chain-badge{
+  font-family:"Baloo 2",sans-serif;
+  font-size:14px;
+  color:var(--c-green-d);
+  min-height:18px;
+}
+.controls{
+  display:flex;
+  justify-content:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.ctl-row{display:flex;gap:10px;}
+button.ctl{
+  border:none;
+  background:var(--btn);
+  color:var(--btn-ink);
+  width:56px;
+  height:56px;
+  border-radius:18px;
+  font-size:22px;
+  box-shadow:0 4px 0 var(--panel-edge);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+button.ctl:active{
+  transform:translateY(3px);
+  box-shadow:0 1px 0 var(--panel-edge);
+}
+button.primary{
+  background:var(--accent);
+  color:#fff;
+  border:none;
+  border-radius:14px;
+  padding:10px 22px;
+  font-family:"Baloo 2",sans-serif;
+  font-size:16px;
+  box-shadow:0 4px 0 var(--c-pink-d);
+  cursor:pointer;
+}
+button.primary:active{transform:translateY(3px);box-shadow:0 1px 0 var(--c-pink-d);}
+.hint{
+  font-size:12px;
+  color:var(--ink-soft);
+  text-align:center;
+  margin:0;
+}
+footer{
+  text-align:center;
+  font-size:11px;
+  color:var(--ink-soft);
+}
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+}
+</style>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@600;700;800&display=swap">
+
+<div class="page">
+
+  <div class="layout">
+    <div class="board-wrap">
+      <canvas id="board" width="720" height="1440" aria-label="ゲーム盤"></canvas>
+      <div class="overlay" id="startOverlay">
+        <h2>まんまるチェイン</h2>
+        <button class="primary" id="startBtn">はじめる</button>
+      </div>
+      <div class="overlay" id="overOverlay" hidden>
+        <h2>ゲームオーバー</h2>
+        <p id="finalScore">スコア: 0</p>
+        <button class="primary" id="retryBtn">もう一度</button>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="panel">
+        <p class="label">スコア</p>
+        <p class="value" id="scoreVal">0</p>
+        <p class="chain-badge" id="chainVal"></p>
+      </div>
+      <div class="panel">
+        <p class="label">ベスト</p>
+        <p class="value small" id="bestVal">0</p>
+      </div>
+      <div class="panel">
+        <p class="label">つぎ</p>
+        <canvas id="nextCanvas" width="84" height="84"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls" hidden>
+    <div class="ctl-row">
+      <button class="ctl" id="btnLeft" aria-label="左へ">&#8592;</button>
+      <button class="ctl" id="btnRotL" aria-label="左回転">&#8634;</button>
+      <button class="ctl" id="btnRotR" aria-label="右回転">&#8635;</button>
+      <button class="ctl" id="btnRight" aria-label="右へ">&#8594;</button>
+      <button class="ctl" id="btnDown" aria-label="下へ落とす">&#8595;</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+// ---------- config ----------
+var COLS = 6;
+var VIS_ROWS = 12;
+var ROWS = VIS_ROWS + 1; // row 0 is hidden spawn buffer, rows 1..12 visible
+var COLORS = [
+  {fill:"#ff8fb3", dark:"#e85f8e", var:"--c-pink", sprite:1},
+  {fill:"#6cc8ff", dark:"#2f9fe8", var:"--c-blue", sprite:2},
+  {fill:"#ffd76a", dark:"#f0a92e", var:"--c-yellow", sprite:3},
+  {fill:"#8fe3a6", dark:"#4fbf72", var:"--c-green", sprite:0}
+];
+// Blenderでレンダリングしたぷにぷにスライムのスプライト
+COLORS.forEach(function(c){
+  var img = new Image();
+  img.onload = function(){ c.ready = true; if(typeof drawNext==="function") drawNext(); if(mode==="idle"||mode==="over") drawBoard(performance.now()); };
+  img.src = "sprites/slime_" + c.sprite + ".png";
+  c.img = img;
+});
+
+// Blenderで作った「結合タイル」: 行=色(sprite番号), 列=接続マスク(1上 2右 4下 8左)
+var ATLAS = new Image(), AT = 128, ATS = 132, AG = 2, ATLAS_READY = false; // タイル128px + 透明の余白2px（隣タイルのにじみ防止）
+ATLAS.onload = function(){ ATLAS_READY = true; if(typeof drawNext==="function") drawNext(); if(mode==="idle"||mode==="over") drawBoard(performance.now()); };
+ATLAS.src = "tiles/atlas.png";
+var TILE_PAD = 0.15; // タイルは1マスの1.3倍（上下左右0.15ずつはみ出し）
+
+function landTerm(cell, now){
+  if(!cell.land) return 0;
+  var t = (now - cell.land)/1000;
+  if(t > 1.6) return 0;
+  return cell.amp * Math.exp(-t*5) * Math.cos(t*2*Math.PI*3.2);
+}
+// グループ単位の変形をかけてタイルを描く（継ぎ目がずれない）
+// つながっている側はタイルのはみ出しを切り落とし、継ぎ目をわずかに重ねる
+// （タイル端の半透明ピクセルが隣の上に残って線に見えるのを防ぐ）
+var SEAM_OVL = 0.04;
+function drawTileG(ctx, sprite, mask, col, vr, g){
+  var L = (mask & 8) ? SEAM_OVL : TILE_PAD;
+  var R = (mask & 2) ? SEAM_OVL : TILE_PAD;
+  var T = (mask & 1) ? SEAM_OVL : TILE_PAD;
+  var B = (mask & 4) ? SEAM_OVL : TILE_PAD;
+  var x = col*CELL - CELL*L, y = (vr-1)*CELL - CELL*T;
+  var w = CELL*(1+L+R), h = CELL*(1+T+B);
+  var ppc = AT/(1+TILE_PAD*2); // アトラス上の1マス分のピクセル
+  var sx0 = mask*ATS + AG + (TILE_PAD-L)*ppc, sy0 = sprite*ATS + AG + (TILE_PAD-T)*ppc;
+  var sw = (1+L+R)*ppc, sh = (1+T+B)*ppc;
+  var X = g.cx + (x - g.cx)*g.sx, Y = g.bottom - (g.bottom - y)*g.sy;
+  ctx.save();
+  ctx.globalAlpha = g.alpha;
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(ATLAS, sx0, sy0, sw, sh, X, Y, w*g.sx, h*g.sy);
+  ctx.restore();
+}
+function drawShadowG(ctx, col, vr, g){
+  var cx = col*CELL + CELL/2, b = vr*CELL;
+  var X = g.cx + (cx - g.cx)*g.sx, Y = g.bottom - (g.bottom - b)*g.sy;
+  ctx.save();
+  ctx.globalAlpha = g.alpha;
+  ctx.fillStyle = "rgba(110,50,80,0.14)";
+  ctx.beginPath();
+  ctx.ellipse(X, Y - CELL*0.04, CELL*0.42*g.sx, CELL*0.07, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+// ---------- 効果音（結合音） ----------
+var audioCtx = null, joinBuf = null, lastJoinAt = 0, pidSeq = 0, joinAudio = null;
+function initAudio(){
+  try{
+    if(!joinAudio){
+      // WebAudioが使えない環境向けの予備
+      joinAudio = new Audio("sounds/join.mp3");
+      joinAudio.preload = "auto";
+      joinAudio.volume = 0.8;
+      joinAudio.load();
+    }
+  }catch(e){}
+  try{
+    if(!audioCtx){
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if(!AC) return;
+      audioCtx = new AC();
+      fetch("sounds/join.mp3")
+        .then(function(r){ return r.arrayBuffer(); })
+        .then(function(b){ return new Promise(function(res, rej){ audioCtx.decodeAudioData(b, res, rej); }); })
+        .then(function(buf){ joinBuf = buf; })
+        .catch(function(){});
+    }
+    if(audioCtx.state === "suspended") audioCtx.resume();
+  }catch(e){}
+}
+function playJoin(){
+  var t = performance.now();
+  if(t - lastJoinAt < 90) return; // 同時に複数結合しても鳴らすのは1回
+  lastJoinAt = t;
+  if(!audioCtx || !joinBuf){
+    if(joinAudio){
+      try{ var a = joinAudio.cloneNode(); a.volume = 0.8; var pr = a.play(); if(pr && pr.catch) pr.catch(function(){}); }catch(e){}
+    }
+    return;
+  }
+  try{
+    var src = audioCtx.createBufferSource(), g = audioCtx.createGain();
+    g.gain.value = 0.8;
+    src.buffer = joinBuf; src.connect(g); g.connect(audioCtx.destination);
+    src.start();
+  }catch(e){}
+}
+// ---------- 効果音（接地音） ----------
+var landBuf = null, landAudio = null, lastLandAt = 0, landLoading = false;
+function initLandAudio(){
+  try{
+    if(!landAudio){
+      landAudio = new Audio("sounds/land.mp3");
+      landAudio.preload = "auto";
+      landAudio.volume = 0.8;
+      landAudio.load();
+    }
+  }catch(e){}
+  try{
+    if(audioCtx && !landBuf && !landLoading){
+      landLoading = true;
+      fetch("sounds/land.mp3")
+        .then(function(r){ return r.arrayBuffer(); })
+        .then(function(b){ return new Promise(function(res, rej){ audioCtx.decodeAudioData(b, res, rej); }); })
+        .then(function(buf){ landBuf = buf; })
+        .catch(function(){ landLoading = false; });
+    }
+  }catch(e){}
+}
+function playLand(){
+  var t = performance.now();
+  if(t - lastLandAt < 70) return;
+  lastLandAt = t;
+  if(audioCtx && landBuf){
+    try{
+      var src = audioCtx.createBufferSource(), g = audioCtx.createGain();
+      g.gain.value = 0.8;
+      src.buffer = landBuf; src.connect(g); g.connect(audioCtx.destination);
+      src.start();
+    }catch(e){}
+  } else if(landAudio){
+    try{ var a = landAudio.cloneNode(); a.volume = 0.8; var pr = a.play(); if(pr && pr.catch) pr.catch(function(){}); }catch(e){}
+  }
+}
+
+// 着地したセルが同じ色のセルと新しく隣り合ったか（同じペア同士は除外）
+function joinsNeighbor(r, c){
+  var cell = grid[r][c];
+  if(!cell) return false;
+  var d = [[-1,0],[1,0],[0,-1],[0,1]];
+  for(var i=0;i<4;i++){
+    var nr = r+d[i][0], nc = c+d[i][1];
+    if(nr<0 || nr>=ROWS || nc<0 || nc>=COLS) continue;
+    var n = grid[nr][nc];
+    if(n && n.c === cell.c && (n.fy||0) >= 0 && !(cell.pid && n.pid === cell.pid)) return true;
+  }
+  return false;
+}
+
+// 着地時のぷるんとした揺れ
+function bump(r, c, amp){
+  var now = performance.now();
+  for(var k=0; k<4 && r+k<ROWS; k++){
+    var cell = grid[r+k][c];
+    if(!cell) break;
+    var a = amp * Math.pow(0.5, k);
+    var cur = cell.land ? jiggleAmp(cell, now) : 0;
+    if(a > cur){ cell.land = now; cell.amp = a; }
+  }
+}
+function jiggleAmp(cell, now){
+  if(!cell.land) return 0;
+  return cell.amp * Math.exp(-(now-cell.land)/1000*5);
+}
+function jiggle(cell, now, row, col){
+  var sy = 1 + 0.025*Math.sin(now/1000*2*Math.PI*0.7 + row*0.9 + col*1.7);
+  if(cell.land){
+    var t = (now-cell.land)/1000;
+    if(t < 1.6) sy -= cell.amp*Math.exp(-t*5)*Math.cos(t*2*Math.PI*3.2);
+  }
+  return sy;
+}
+var DROP_MS = 620;
+var SOFT_MS = 55;
+var POP_MS = 360;
+
+// ---------- state ----------
+var grid; // grid[row][col] = {c:colorIndex, face:0/1/2} or null
+var cur, nxt;
+var score = 0;
+var best = 0;
+var chainCount = 0;
+var mode = "idle"; // idle | falling | locked | popping | settling | over
+var lastTick = 0;
+var fallTimer = 0;
+var popStart = 0;
+var poppingCells = [];
+var settleQueue = [];
+var softDrop = false;
+
+var boardCanvas = document.getElementById("board");
+var bctx = boardCanvas.getContext("2d");
+var nextCanvas = document.getElementById("nextCanvas");
+var nctx = nextCanvas.getContext("2d");
+var scoreVal = document.getElementById("scoreVal");
+var bestVal = document.getElementById("bestVal");
+var chainVal = document.getElementById("chainVal");
+var startOverlay = document.getElementById("startOverlay");
+var overOverlay = document.getElementById("overOverlay");
+var finalScoreEl = document.getElementById("finalScore");
+
+var CELL = boardCanvas.width / COLS; // internal px per cell (30)
+
+function loadBest(){
+  try{
+    var v = localStorage.getItem("manmaru_best");
+    return v ? parseInt(v,10) || 0 : 0;
+  }catch(e){ return 0; }
+}
+function saveBest(v){
+  try{ localStorage.setItem("manmaru_best", String(v)); }catch(e){}
+}
+
+function newGrid(){
+  var g = [];
+  for(var r=0;r<ROWS;r++){
+    var row = [];
+    for(var c=0;c<COLS;c++) row.push(null);
+    g.push(row);
+  }
+  return g;
+}
+
+function randColor(){ return Math.floor(Math.random()*COLORS.length); }
+function randFace(){ return Math.floor(Math.random()*3); }
+
+function makePiece(){
+  return {
+    axisColor: randColor(),
+    satColor: randColor(),
+    axisFace: randFace(),
+    satFace: randFace(),
+    row: 0,
+    col: Math.floor(COLS/2)-1,
+    rot: 2 // satellite below axis at spawn
+  };
+}
+
+// offsets for satellite relative to axis, by rotation state
+var ROT_OFFSETS = [
+  {dr:-1,dc:0}, // 0: sat above
+  {dr:0,dc:1},  // 1: sat right
+  {dr:1,dc:0},  // 2: sat below
+  {dr:0,dc:-1}  // 3: sat left
+];
+
+function satPos(p){
+  var o = ROT_OFFSETS[p.rot];
+  return {row:p.row+o.dr, col:p.col+o.dc};
+}
+
+function cellFree(r,c){
+  if(c<0 || c>=COLS) return false;
+  if(r>=ROWS) return false;
+  if(r<0) return true; // above buffer, allowed transiently
+  return grid[r][c] === null;
+}
+
+function pieceFits(p){
+  var s = satPos(p);
+  if(!cellFree(p.row,p.col)) return false;
+  if(!cellFree(s.row,s.col)) return false;
+  return true;
+}
+
+function tryMove(dc){
+  if(mode!=="falling") return;
+  var np = {axisColor:cur.axisColor, satColor:cur.satColor, axisFace:cur.axisFace, satFace:cur.satFace, row:cur.row, col:cur.col+dc, rot:cur.rot};
+  if(pieceFits(np)) cur.col = np.col;
+}
+
+function tryRotate(dir){
+  if(mode!=="falling") return;
+  var newRot = (cur.rot + dir + 4) % 4;
+  var trial = {row:cur.row, col:cur.col, rot:newRot};
+  if(pieceFits(trial)){ cur.rot = newRot; return; }
+  // wall kicks
+  var kicks = [1,-1,2,-2];
+  for(var i=0;i<kicks.length;i++){
+    var t2 = {row:cur.row, col:cur.col+kicks[i], rot:newRot};
+    if(pieceFits(t2)){ cur.col = t2.col; cur.rot = newRot; return; }
+  }
+  // try lifting up one row (for bottom edge rotations)
+  var t3 = {row:cur.row-1, col:cur.col, rot:newRot};
+  if(pieceFits(t3)){ cur.row = t3.row; cur.rot = newRot; return; }
+}
+
+function tryDrop(){
+  if(mode!=="falling") return false;
+  var np = {row:cur.row+1, col:cur.col, rot:cur.rot};
+  if(pieceFits(np)){ cur.row = np.row; return true; }
+  return false;
+}
+
+function hardDrop(){
+  if(mode!=="falling") return;
+  var moved = true;
+  while(moved){ moved = tryDrop(); }
+  lockPiece();
+}
+
+function lockPiece(){
+  var s = satPos(cur);
+  var placed = [];
+  if(cur.row>=0){ grid[cur.row][cur.col] = {c:cur.axisColor, face:cur.axisFace}; placed.push({row:cur.row,col:cur.col}); }
+  if(s.row>=0){ grid[s.row][s.col] = {c:cur.satColor, face:cur.satFace}; placed.push({row:s.row,col:s.col}); }
+  var off = Math.min(0, (cur.vrow===undefined ? cur.row : cur.vrow) - cur.row);
+  var pid = ++pidSeq, joined = false, landedImm = false;
+  placed.forEach(function(p){ grid[p.row][p.col].pid = pid; });
+  placed.forEach(function(p){
+    var cell = grid[p.row][p.col];
+    if(off < -0.02){ cell.fy = off; cell.vy = off < -1 ? 14 : 5; }
+    else { bump(p.row, p.col, 0.38); landedImm = true; if(joinsNeighbor(p.row, p.col)) joined = true; }
+  });
+  if(landedImm) playLand();
+  if(joined) playJoin();
+  cur = null;
+  chainCount = 0;
+  // check game over: anything landed still in hidden row that can't fall
+  if((placed.length && placed.some(function(p){return p.row<=0;})) ){
+    // will be resolved after gravity/pop pass; game-over check happens post resolve
+  }
+  mode = "settling";
+  settleQueue = [];
+  startResolvePass();
+}
+
+function applyGravity(){
+  var moved = false;
+  var landed = [];
+  for(var c=0;c<COLS;c++){
+    var write = ROWS-1;
+    for(var r=ROWS-1;r>=0;r--){
+      if(grid[r][c] !== null){
+        if(write!==r){
+          grid[write][c] = grid[r][c];
+          grid[r][c] = null;
+          moved = true;
+          grid[write][c].fy = (grid[write][c].fy||0) - (write - r);
+          grid[write][c].vy = grid[write][c].vy||0;
+        }
+        write--;
+      }
+    }
+  }
+  return moved;
+}
+
+function findGroups(){
+  var visited = [];
+  for(var r=0;r<ROWS;r++){ visited.push(new Array(COLS).fill(false)); }
+  var groups = [];
+  for(var r=1;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      if(grid[r][c] && !visited[r][c]){
+        var color = grid[r][c].c;
+        var stack = [{row:r,col:c}];
+        visited[r][c] = true;
+        var members = [];
+        while(stack.length){
+          var cell = stack.pop();
+          members.push(cell);
+          var neigh = [{row:cell.row-1,col:cell.col},{row:cell.row+1,col:cell.col},{row:cell.row,col:cell.col-1},{row:cell.row,col:cell.col+1}];
+          for(var i=0;i<neigh.length;i++){
+            var nr=neigh[i].row, nc=neigh[i].col;
+            if(nr>=1 && nr<ROWS && nc>=0 && nc<COLS && !visited[nr][nc] && grid[nr][nc] && grid[nr][nc].c===color){
+              visited[nr][nc]=true;
+              stack.push({row:nr,col:nc});
+            }
+          }
+        }
+        if(members.length>=4) groups.push({color:color, members:members});
+      }
+    }
+  }
+  return groups;
+}
+
+function startResolvePass(){
+  applyGravity();
+  if(anyDropping()){ mode = "dropping"; return; }
+  resolveGroups();
+}
+
+// 落下中のセルがあるか
+function anyDropping(){
+  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){ var x=grid[r][c]; if(x && (x.fy||0) < 0) return true; }
+  return false;
+}
+// 重力加速でなめらかに落とす。全部着地したら true
+function updateDrops(dt){
+  var s = dt/1000, still = false, joinedNow = false, landedNow = false;
+  for(var r=ROWS-1;r>=0;r--) for(var c=0;c<COLS;c++){
+    var x = grid[r][c];
+    if(!x || (x.fy||0) >= 0) continue;
+    x.vy = Math.min(24, (x.vy||0) + 70*s);
+    x.fy += x.vy*s;
+    if(x.fy >= 0){
+      var v = x.vy; x.fy = 0; x.vy = 0;
+      bump(r, c, 0.22 + Math.min(0.2, v*0.012));
+      landedNow = true;
+      if(joinsNeighbor(r, c)) joinedNow = true;
+    } else still = true;
+  }
+  if(landedNow) playLand();
+  if(joinedNow) playJoin();
+  return !still;
+}
+
+function resolveGroups(){
+  var groups = findGroups();
+  if(groups.length===0){
+    // check game over
+    if(grid[0].some(function(cell){return cell!==null;})){
+      endGame();
+      return;
+    }
+    spawnNext();
+    return;
+  }
+  chainCount++;
+  poppingCells = [];
+  var total = 0;
+  groups.forEach(function(g){ total += g.members.length; g.members.forEach(function(m){ poppingCells.push(m); }); });
+  var gain = total*10*chainCount + (groups.length>1 ? groups.length*40 : 0);
+  score += gain;
+  scoreVal.textContent = String(score);
+  if(chainCount>1){
+    chainVal.textContent = chainCount + "れんさ! +" + gain;
+  } else {
+    chainVal.textContent = "+" + gain;
+  }
+  mode = "popping";
+  popStart = performance.now();
+}
+
+function finishPop(){
+  poppingCells.forEach(function(m){ grid[m.row][m.col] = null; });
+  poppingCells = [];
+  mode = "settling";
+  startResolvePass();
+}
+
+function spawnNext(){
+  chainVal.textContent = "";
+  cur = nxt || makePiece();
+  cur.row = 0;
+  cur.col = Math.floor(COLS/2)-1;
+  cur.rot = 2;
+  cur.vrow = cur.row - 1;
+  cur.vx = cur.col;
+  cur.vang = cur.rot*Math.PI/2;
+  nxt = makePiece();
+  drawNext();
+  if(!pieceFits(cur)){
+    endGame();
+    return;
+  }
+  mode = "falling";
+  fallTimer = 0;
+}
+
+function endGame(){
+  mode = "over";
+  if(score>best){
+    best = score;
+    saveBest(best);
+    bestVal.textContent = String(best);
+  }
+  finalScoreEl.textContent = "スコア: " + score;
+  overOverlay.hidden = false;
+}
+
+function startGame(){
+  initAudio();
+  initLandAudio();
+  grid = newGrid();
+  score = 0;
+  chainCount = 0;
+  scoreVal.textContent = "0";
+  chainVal.textContent = "";
+  startOverlay.hidden = true;
+  overOverlay.hidden = true;
+  nxt = makePiece();
+  spawnNext();
+  lastTick = performance.now();
+  requestAnimationFrame(loop);
+}
+
+// ---------- drawing ----------
+function roundedFace(ctx, cx, cy, r, colorObj, face){
+  var grad = ctx.createRadialGradient(cx-r*0.35, cy-r*0.4, r*0.1, cx, cy, r*1.05);
+  grad.addColorStop(0, "#ffffff");
+  grad.addColorStop(0.18, colorObj.fill);
+  grad.addColorStop(1, colorObj.dark);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.lineWidth = Math.max(1.5, r*0.09);
+  ctx.strokeStyle = colorObj.dark;
+  ctx.stroke();
+
+  // highlight
+  ctx.beginPath();
+  ctx.ellipse(cx-r*0.32, cy-r*0.38, r*0.28, r*0.17, -0.5, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  ctx.fill();
+
+  // blush
+  ctx.fillStyle = "rgba(255,255,255,0.0)";
+  ctx.globalAlpha = 0.55;
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.ellipse(cx-r*0.55, cy+r*0.22, r*0.14, r*0.09, 0, 0, Math.PI*2);
+  ctx.ellipse(cx+r*0.55, cy+r*0.22, r*0.14, r*0.09, 0, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(255,150,180,0.5)";
+  ctx.fill();
+  ctx.globalAlpha = 1;
+
+  // eyes + mouth by face variant
+  ctx.fillStyle = "#553244";
+  ctx.strokeStyle = "#553244";
+  ctx.lineWidth = Math.max(1.2, r*0.09);
+  var ex = r*0.32, ey = -r*0.05;
+  if(face===0){ // normal round eyes + smile
+    ctx.beginPath();
+    ctx.arc(cx-ex, cy+ey, r*0.11, 0, Math.PI*2);
+    ctx.arc(cx+ex, cy+ey, r*0.11, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy+r*0.18, r*0.22, 0.15*Math.PI, 0.85*Math.PI);
+    ctx.stroke();
+  } else if(face===1){ // happy closed ^^ eyes
+    ctx.beginPath();
+    ctx.arc(cx-ex, cy+ey+r*0.06, r*0.14, Math.PI*1.1, Math.PI*1.9);
+    ctx.arc(cx+ex, cy+ey+r*0.06, r*0.14, Math.PI*1.1, Math.PI*1.9);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy+r*0.2, r*0.18, 0.1*Math.PI, 0.9*Math.PI);
+    ctx.stroke();
+  } else { // surprised o_o
+    ctx.beginPath();
+    ctx.arc(cx-ex, cy+ey, r*0.13, 0, Math.PI*2);
+    ctx.arc(cx+ex, cy+ey, r*0.13, 0, Math.PI*2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy+r*0.22, r*0.1, 0, Math.PI*2);
+    ctx.stroke();
+  }
+}
+
+function drawSlime(ctx, cx, bottom, size, colorObj, sx, sy, alpha){
+  var w = size*1.06*sx, h = size*0.86*sy;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "rgba(110,50,80,0.13)";
+  ctx.beginPath();
+  ctx.ellipse(cx, bottom-size*0.03, w*0.42, size*0.07, 0, 0, Math.PI*2);
+  ctx.fill();
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(colorObj.img, cx-w/2, bottom-h, w, h);
+  ctx.restore();
+}
+
+function drawCell(ctx, row, col, colorObj, face, scale, alpha, sy){
+  scale = scale===undefined?1:scale;
+  alpha = alpha===undefined?1:alpha;
+  sy = sy===undefined?1:sy;
+  var cx = col*CELL + CELL/2;
+  if(colorObj.ready){
+    var bottom = row*CELL - CELL*0.02;
+    drawSlime(ctx, cx, bottom, CELL, colorObj, scale/Math.sqrt(sy), scale*sy, alpha);
+    return;
+  }
+  var cy = (row-1)*CELL + CELL/2;
+  var r = (CELL/2 - 2) * scale;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  roundedFace(ctx, cx, cy, r, colorObj, face);
+  ctx.restore();
+}
+
+function nearestAngle(a, t){
+  while(t - a > Math.PI) t -= Math.PI*2;
+  while(a - t > Math.PI) t += Math.PI*2;
+  return t;
+}
+// 操作中ペアの表示位置・角度をなめらかに追従させる
+function easePiece(dt){
+  var canFall = pieceFits({row:cur.row+1, col:cur.col, rot:cur.rot});
+  var interval = softDrop ? SOFT_MS : DROP_MS;
+  var target = cur.row + (canFall ? Math.min(1, fallTimer/interval) : 0);
+  cur.vrow += (target - cur.vrow) * (1 - Math.exp(-dt/35));
+  if(target - cur.vrow > 1.5) cur.vrow = target - 1.5;
+  cur.vx += (cur.col - cur.vx) * (1 - Math.exp(-dt/40));
+  var tg = nearestAngle(cur.vang, cur.rot*Math.PI/2);
+  cur.vang += (tg - cur.vang) * (1 - Math.exp(-dt/45));
+}
+
+function slimeParams(row, col, co, scale, alpha, sy){
+  var sx = scale/Math.sqrt(sy);
+  return {cx: col*CELL + CELL/2, bottom: row*CELL - CELL*0.02,
+          w: CELL*1.06*sx, h: CELL*0.86*scale*sy, alpha: alpha, co: co};
+}
+function drawSlimeP(ctx, p, noShadow){
+  ctx.save();
+  ctx.globalAlpha = p.alpha;
+  if(!noShadow){
+    ctx.fillStyle = "rgba(110,50,80,0.13)";
+    ctx.beginPath();
+    ctx.ellipse(p.cx, p.bottom - CELL*0.03, p.w*0.42, CELL*0.07, 0, 0, Math.PI*2);
+    ctx.fill();
+  }
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(p.co.img, p.cx - p.w/2, p.bottom - p.h, p.w, p.h);
+  ctx.restore();
+}
+// 横つなぎ: スライム中央の縦スライスを引き伸ばして胴体をつなげる
+function hBridge(ctx, a, b){
+  var img = a.co.img, sw = img.naturalWidth, sh = img.naturalHeight;
+  var h = (a.h + b.h)/2 * 0.93, bottom = (a.bottom + b.bottom)/2;
+  ctx.save();
+  ctx.globalAlpha = Math.min(a.alpha, b.alpha);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, sw*0.485, 0, sw*0.03, sh, a.cx, bottom - h, b.cx - a.cx, h);
+  ctx.restore();
+}
+// 縦つなぎ: 下腹の横スライスを引き伸ばして上下をつなげる
+function vBridge(ctx, u, d){
+  var img = u.co.img, sw = img.naturalWidth, sh = img.naturalHeight;
+  var w = Math.min(u.w, d.w) * 1.0, cx = (u.cx + d.cx)/2;
+  var y1 = u.bottom - u.h*0.55, y2 = d.bottom - d.h*0.4;
+  if(y2 <= y1) return;
+  ctx.save();
+  ctx.globalAlpha = Math.min(u.alpha, d.alpha);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, 0, sh*0.78, sw, sh*0.04, cx - w/2, y1, w, y2 - y1);
+  ctx.restore();
+}
+
+function drawBoard(now){
+  if(!ATLAS_READY){ drawBoardOld(now); return; }
+  bctx.clearRect(0,0,boardCanvas.width, boardCanvas.height);
+  bctx.save();
+  bctx.globalAlpha = 0.35;
+  bctx.fillStyle = "#ffd9e8";
+  for(var r=1;r<ROWS;r++) for(var c=0;c<COLS;c++){
+    bctx.beginPath();
+    bctx.arc(c*CELL+CELL/2, (r-1)*CELL+CELL/2, CELL*0.06, 0, Math.PI*2);
+    bctx.fill();
+  }
+  bctx.restore();
+
+  var popSet = {}, popP = 0;
+  if(mode==="popping"){
+    popP = Math.min(1, (now-popStart)/POP_MS);
+    poppingCells.forEach(function(m){ popSet[m.row+"_"+m.col] = true; });
+  }
+  // セル情報
+  var I = [];
+  for(var r1=0;r1<ROWS;r1++){
+    I.push([]);
+    for(var c1=0;c1<COLS;c1++){
+      var cl = grid[r1][c1];
+      if(!cl){ I[r1].push(null); continue; }
+      var fy = cl.fy || 0;
+      I[r1].push({r:r1, c:c1, cell:cl, vr:r1+fy, falling:fy<0, popping:!!popSet[r1+"_"+c1], comp:-1});
+    }
+  }
+  function same(a, b){ return a && b && !a.falling && !b.falling && a.cell.c===b.cell.c && a.popping===b.popping; }
+  // 同色でつながった塊ごとにまとめる
+  var comps = [];
+  for(var r2=0;r2<ROWS;r2++) for(var c2=0;c2<COLS;c2++){
+    var st0 = I[r2][c2];
+    if(!st0 || st0.comp>=0) continue;
+    var g = {members:[]}, stack=[st0]; st0.comp = comps.length;
+    while(stack.length){
+      var m = stack.pop(); g.members.push(m);
+      [[-1,0],[1,0],[0,-1],[0,1]].forEach(function(d){
+        var nr=m.r+d[0], nc=m.c+d[1];
+        if(nr<0||nr>=ROWS||nc<0||nc>=COLS) return;
+        var n = I[nr][nc];
+        if(n && n.comp<0 && same(m, n)){ n.comp = st0.comp; stack.push(n); }
+      });
+    }
+    comps.push(g);
+  }
+  comps.forEach(function(g){
+    var bottom = -1e9, sumx = 0, term = 0, f = g.members[0];
+    g.members.forEach(function(m){
+      bottom = Math.max(bottom, m.vr*CELL);
+      sumx += m.c*CELL + CELL/2;
+      var t = landTerm(m.cell, now);
+      if(Math.abs(t) > Math.abs(term)) term = t;
+      // 接続マスク
+      var k = 0;
+      if(m.r>0 && I[m.r-1][m.c] && I[m.r-1][m.c].comp===m.comp) k |= 1;
+      if(m.c<COLS-1 && I[m.r][m.c+1] && I[m.r][m.c+1].comp===m.comp) k |= 2;
+      if(m.r<ROWS-1 && I[m.r+1][m.c] && I[m.r+1][m.c].comp===m.comp) k |= 4;
+      if(m.c>0 && I[m.r][m.c-1] && I[m.r][m.c-1].comp===m.comp) k |= 8;
+      m.mask = k;
+    });
+    g.bottom = bottom; g.cx = sumx / g.members.length;
+    var sy, sc = 1, alpha = 1;
+    if(f.popping){
+      sc = 1 + Math.sin(popP*Math.PI)*0.2;
+      sy = popP < 0.35 ? 1 - popP*1.1 : 0.62 + (popP-0.35)*1.4;
+      alpha = popP < 0.35 ? 1 : 1 - (popP-0.35)/0.65;
+    } else if(f.falling){
+      sy = 1.08;
+    } else {
+      sy = 1 + 0.022*Math.sin(now/1000*2*Math.PI*0.7 + f.r*0.9 + f.c*1.7) - term;
+    }
+    g.sy = sc*sy; g.sx = sc/Math.sqrt(sy); g.alpha = alpha;
+  });
+  // 影 → タイル（下の段から）
+  var all = [];
+  comps.forEach(function(g){ g.members.forEach(function(m){ m.g = g; all.push(m); }); });
+  all.sort(function(a, b){ return b.vr - a.vr; });
+  all.forEach(function(m){ if(!(m.mask & 4)) drawShadowG(bctx, m.c, m.vr, m.g); });
+  all.forEach(function(m){ drawTileG(bctx, COLORS[m.cell.c].sprite, m.mask, m.c, m.vr, m.g); });
+
+  // 操作中のペア
+  if(mode==="falling" && cur){
+    var st = softDrop ? 1.12 : 1.05 + 0.02*Math.sin(now/1000*2*Math.PI*1.5);
+    var ax = cur.vx, ay = cur.vrow;
+    var sx2 = ax + Math.sin(cur.vang), sy2 = ay - Math.cos(cur.vang);
+    var am = 0, sm = 0;
+    var tgt = nearestAngle(cur.vang, cur.rot*Math.PI/2);
+    if(cur.axisColor === cur.satColor && Math.abs(tgt - cur.vang) < 0.35){
+      am = [1,2,4,8][cur.rot]; sm = [4,8,1,2][cur.rot];
+    }
+    var pg = {cx: ((ax+sx2)/2)*CELL + CELL/2, bottom: Math.max(ay, sy2)*CELL, sx: 1/Math.sqrt(st), sy: st, alpha: 1};
+    var cells = [[ax, ay, cur.axisColor, am], [sx2, sy2, cur.satColor, sm]];
+    cells.sort(function(a, b){ return b[1] - a[1]; });
+    cells.forEach(function(q){ if(!(q[3] & 4)) drawShadowG(bctx, q[0], q[1], pg); });
+    cells.forEach(function(q){ drawTileG(bctx, COLORS[q[2]].sprite, q[3], q[0], q[1], pg); });
+  }
+}
+
+function drawBoardOld(now){
+  bctx.clearRect(0,0,boardCanvas.width, boardCanvas.height);
+  // subtle grid dots
+  bctx.save();
+  bctx.globalAlpha = 0.35;
+  bctx.fillStyle = "#ffd9e8";
+  for(var r=1;r<ROWS;r++){
+    for(var c=0;c<COLS;c++){
+      bctx.beginPath();
+      bctx.arc(c*CELL+CELL/2, (r-1)*CELL+CELL/2, CELL*0.06, 0, Math.PI*2);
+      bctx.fill();
+    }
+  }
+  bctx.restore();
+
+  var poppingSet = null;
+  var popProgress = 0;
+  if(mode==="popping"){
+    popProgress = Math.min(1, (now-popStart)/POP_MS);
+    poppingSet = {};
+    poppingCells.forEach(function(m){ poppingSet[m.row+"_"+m.col] = true; });
+  }
+
+  var P = [];
+  for(var rr=0; rr<ROWS; rr++){
+    P.push([]);
+    for(var cc=0; cc<COLS; cc++){
+      var cell = grid[rr][cc];
+      if(!cell){ P[rr].push(null); continue; }
+      var co = COLORS[cell.c];
+      var fy = cell.fy || 0;
+      var vr = rr + fy;
+      var key = rr+"_"+cc;
+      var popping = !!(poppingSet && poppingSet[key]);
+      var p;
+      if(popping){
+        var s = 1 + Math.sin(popProgress*Math.PI)*0.25;
+        var psy = popProgress < 0.35 ? 1 - popProgress*1.1 : 0.62 + (popProgress-0.35)*1.4;
+        var a = popProgress < 0.35 ? 1 : 1 - (popProgress-0.35)/0.65;
+        p = slimeParams(vr, cc, co, s, a, psy);
+      } else {
+        p = slimeParams(vr, cc, co, 1, 1, fy < 0 ? 1.08 : jiggle(cell, now, rr, cc));
+      }
+      p.cell = cell; p.popping = popping; p.falling = fy < 0; p.vr = vr;
+      P[rr].push(p);
+    }
+  }
+  function joinable(a, b){
+    return a && b && a.cell.c === b.cell.c && !a.falling && !b.falling && a.popping === b.popping && a.co.ready;
+  }
+  // 同じ色どうしの結合（体の下に桥を描く）
+  for(var r2=0; r2<ROWS; r2++){
+    for(var c2=0; c2<COLS; c2++){
+      var q = P[r2][c2];
+      if(!q) continue;
+      if(c2+1 < COLS && joinable(q, P[r2][c2+1])) hBridge(bctx, q, P[r2][c2+1]);
+      if(r2+1 < ROWS && joinable(q, P[r2+1][c2])){ vBridge(bctx, q, P[r2+1][c2]); q.joinedBelow = true; }
+    }
+  }
+  // 下の段から描く（上のスライムが手前に乗る）
+  for(var r3=ROWS-1; r3>=0; r3--){
+    for(var c3=0; c3<COLS; c3++){
+      var q3 = P[r3][c3];
+      if(!q3) continue;
+      if(q3.co.ready) drawSlimeP(bctx, q3, q3.joinedBelow);
+      else drawCell(bctx, q3.vr, c3, q3.co, q3.cell.face, 1, 1, 1);
+    }
+  }
+
+  for(var rr=ROWS; rr<ROWS; rr++){
+    for(var cc=0; cc<COLS; cc++){
+      var cell = grid[rr][cc];
+      if(!cell) continue;
+      if(false){
+        // むぎゅっとつぶれてからぱちんと弾ける
+        var s = 1 + Math.sin(popProgress*Math.PI)*0.25;
+        var psy = popProgress < 0.35 ? 1 - popProgress*1.1 : 0.62 + (popProgress-0.35)*1.4;
+        var a = popProgress < 0.35 ? 1 : 1 - (popProgress-0.35)/0.65;
+        drawCell(bctx, rr, cc, COLORS[cell.c], cell.face, s, a, psy);
+      } else {
+        drawCell(bctx, rr, cc, COLORS[cell.c], cell.face, 1, 1, jiggle(cell, now, rr, cc));
+      }
+    }
+  }
+
+  if(mode==="falling" && cur){
+    var st = softDrop ? 1.12 : 1.05 + 0.02*Math.sin(now/1000*2*Math.PI*1.5);
+    var ax = cur.vx, ay = cur.vrow;
+    var sx2 = ax + Math.sin(cur.vang), sy2 = ay - Math.cos(cur.vang);
+    var ca = COLORS[cur.axisColor], cs = COLORS[cur.satColor];
+    if(ca.ready && cs.ready){
+      var pa = slimeParams(ay, ax, ca, 1, 1, st), ps = slimeParams(sy2, sx2, cs, 1, 1, st);
+      var vertical = Math.abs(sy2-ay) > Math.abs(sx2-ax);
+      var same = cur.axisColor === cur.satColor;
+      if(same){
+        if(!vertical){ if(pa.cx < ps.cx) hBridge(bctx, pa, ps); else hBridge(bctx, ps, pa); }
+        else { if(pa.bottom < ps.bottom) vBridge(bctx, pa, ps); else vBridge(bctx, ps, pa); }
+      }
+      var lower = pa.bottom >= ps.bottom ? pa : ps, upper = lower === pa ? ps : pa;
+      drawSlimeP(bctx, lower);
+      drawSlimeP(bctx, upper, same && vertical);
+    } else {
+      drawCell(bctx, ay, ax, ca, cur.axisFace, 1, 1, st);
+      drawCell(bctx, sy2, sx2, cs, cur.satFace, 1, 1, st);
+    }
+  }
+}
+
+function drawNext(){
+  nctx.clearRect(0,0,nextCanvas.width, nextCanvas.height);
+  if(!nxt) return;
+  if(ATLAS_READY){
+    var cs = 40, s = cs*1.3, x0 = nextCanvas.width/2 - s/2;
+    var j = nxt.axisColor === nxt.satColor;
+    nctx.imageSmoothingQuality = "high";
+    nctx.drawImage(ATLAS, (j?4:0)*ATS + AG, COLORS[nxt.axisColor].sprite*ATS + AG, AT, AT, x0, 2 - cs*0.15, s, s);
+    nctx.drawImage(ATLAS, (j?1:0)*ATS + AG, COLORS[nxt.satColor].sprite*ATS + AG, AT, AT, x0, 2 + cs - cs*0.15, s, s);
+    return;
+  }
+  var cell = nextCanvas.width/2;
+  var r = cell/2 - 6;
+  // vertical preview: axis top... show as vertical pair matching spawn (sat below axis)
+  var cx = nextCanvas.width/2;
+  var ca = COLORS[nxt.axisColor], cs = COLORS[nxt.satColor];
+  if(ca.ready && cs.ready){
+    drawSlime(nctx, cx, nextCanvas.height*0.48, 40, ca, 1, 1, 1);
+    drawSlime(nctx, cx, nextCanvas.height*0.94, 40, cs, 1, 1, 1);
+    return;
+  }
+  roundedFace(nctx, cx, nextCanvas.height*0.32, r, ca, nxt.axisFace);
+  roundedFace(nctx, cx, nextCanvas.height*0.68, r, cs, nxt.satFace);
+}
+
+// ---------- loop ----------
+function loop(now){
+  if(mode==="idle" || mode==="over"){ return; }
+  var dt = Math.min(50, now - lastTick);
+  lastTick = now;
+
+  if(mode==="falling"){
+    fallTimer += dt;
+    var interval = softDrop ? SOFT_MS : DROP_MS;
+    if(fallTimer >= interval){
+      fallTimer = 0;
+      var moved = tryDrop();
+      if(!moved){ lockPiece(); }
+    }
+    if(cur && mode==="falling") easePiece(dt);
+  } else if(mode==="popping"){
+    if(now - popStart >= POP_MS){
+      finishPop();
+    }
+  } else if(mode==="dropping"){
+    if(updateDrops(dt)) resolveGroups();
+  }
+  drawBoard(now);
+  requestAnimationFrame(loop);
+}
+
+// ---------- input ----------
+window.addEventListener("keydown", function(e){
+  if(mode!=="falling"){
+    if(e.code==="Space" && (mode==="idle")) { /* no-op, overlay button handles start */ }
+    return;
+  }
+  switch(e.code){
+    case "ArrowLeft": tryMove(-1); e.preventDefault(); break;
+    case "ArrowRight": tryMove(1); e.preventDefault(); break;
+    case "ArrowUp": case "KeyX": tryRotate(1); e.preventDefault(); break;
+    case "KeyZ": tryRotate(-1); e.preventDefault(); break;
+    case "ArrowDown": softDrop = true; e.preventDefault(); break;
+    case "Space": hardDrop(); e.preventDefault(); break;
+  }
+});
+window.addEventListener("keyup", function(e){
+  if(e.code==="ArrowDown") softDrop = false;
+});
+
+function bindHold(el, fn){
+  el.addEventListener("click", function(){ fn(); });
+}
+bindHold(document.getElementById("btnLeft"), function(){ tryMove(-1); });
+bindHold(document.getElementById("btnRight"), function(){ tryMove(1); });
+bindHold(document.getElementById("btnRotL"), function(){ tryRotate(-1); });
+bindHold(document.getElementById("btnRotR"), function(){ tryRotate(1); });
+var downBtn = document.getElementById("btnDown");
+downBtn.addEventListener("pointerdown", function(){ softDrop = true; });
+downBtn.addEventListener("pointerup", function(){ softDrop = false; });
+downBtn.addEventListener("pointerleave", function(){ softDrop = false; });
+
+document.getElementById("startBtn").addEventListener("click", startGame);
+document.getElementById("retryBtn").addEventListener("click", startGame);
+
+// ---------- init ----------
+best = loadBest();
+bestVal.textContent = String(best);
+grid = newGrid();
+mode = "idle";
+drawBoard(performance.now());
+
+// hot reload support for viewers who keep the page open
+try{
+  if(window.claude && window.claude.hot){
+    window.claude.hot.snapshot = function(){
+      return {score:score, best:best};
+    };
+  }
+}catch(e){}
+
+})();
+</script>
+
+</body></html>
