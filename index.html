@@ -295,6 +295,63 @@ footer{
   font-size:11px;
   color:var(--ink-soft);
 }
+/* ---------- スマホ用レイアウト（html.mobile のとき） ---------- */
+.controls{display:none;}
+html.mobile, html.mobile body{height:100%;overflow:hidden;overscroll-behavior:none;}
+html.mobile body{align-items:stretch;min-height:0;}
+html.mobile .page{
+  max-width:none;
+  height:100%;
+  padding:8px 8px calc(10px + env(safe-area-inset-bottom,0px));
+  gap:10px;
+}
+html.mobile .layout{
+  display:flex;
+  flex-direction:row;
+  flex-wrap:nowrap;
+  align-items:flex-start;
+  justify-content:center;
+  gap:8px;
+  flex:1 1 auto;
+  min-height:0;
+}
+html.mobile .board-wrap{padding:5px;border-width:2px;border-radius:16px;}
+html.mobile .overlay{inset:5px;}
+html.mobile canvas#board{
+  width:var(--bw,60vw);
+  height:calc(var(--bw,60vw) * 2);
+  border-radius:11px;
+}
+html.mobile .side{
+  width:84px;
+  max-width:none;
+  flex-direction:column;
+  flex-wrap:nowrap;
+  gap:8px;
+}
+html.mobile .side .panel{flex:0 0 auto;padding:6px 8px;border-radius:12px;}
+html.mobile .panel .label{font-size:10px;margin:0 0 2px;}
+html.mobile .panel .value{font-size:19px;}
+html.mobile .panel .value.small{font-size:15px;}
+html.mobile .chain-badge{font-size:12px;min-height:14px;}
+html.mobile #nextCanvas{width:60px;height:60px;}
+html.mobile .controls{
+  display:flex;
+  flex:0 0 auto;
+  justify-content:center;
+}
+html.mobile .ctl-row{gap:8px;width:100%;max-width:460px;}
+html.mobile button.ctl{
+  flex:1 1 0;
+  width:auto;
+  height:58px;
+  font-size:24px;
+  touch-action:manipulation;
+}
+html.mobile button.ctl.drop{background:var(--accent);color:#fff;box-shadow:0 4px 0 var(--c-pink-d);}
+.touch-hint{display:none;}
+html.mobile .touch-hint{display:block;font-size:12px;opacity:0.9;}
+html.mobile .pc-hint{display:none;}
 @media (prefers-reduced-motion: reduce){
   *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
 }
@@ -309,6 +366,8 @@ footer{
       <canvas id="board" width="720" height="1440" aria-label="ゲーム盤"></canvas>
       <div class="overlay" id="startOverlay">
         <h2>まんまるチェイン</h2>
+        <p class="pc-hint">← → 移動 / ↑・X 右回転 / Z 左回転<br>↓ ゆっくり落とす / Space 一気に落とす</p>
+        <p class="touch-hint">左右スワイプで移動・タップで回転<br>下スワイプで一気に落とす</p>
         <button class="primary" id="startBtn">はじめる</button>
       </div>
       <div class="overlay" id="overOverlay" hidden>
@@ -335,13 +394,14 @@ footer{
     </div>
   </div>
 
-  <div class="controls" hidden>
+  <div class="controls">
     <div class="ctl-row">
       <button class="ctl" id="btnLeft" aria-label="左へ">&#8592;</button>
+      <button class="ctl" id="btnDown" aria-label="ゆっくり落とす">&#8595;</button>
+      <button class="ctl" id="btnRight" aria-label="右へ">&#8594;</button>
       <button class="ctl" id="btnRotL" aria-label="左回転">&#8634;</button>
       <button class="ctl" id="btnRotR" aria-label="右回転">&#8635;</button>
-      <button class="ctl" id="btnRight" aria-label="右へ">&#8594;</button>
-      <button class="ctl" id="btnDown" aria-label="下へ落とす">&#8595;</button>
+      <button class="ctl drop" id="btnDrop" aria-label="一気に落とす">&#10515;</button>
     </div>
   </div>
 </div>
@@ -1278,17 +1338,91 @@ window.addEventListener("keyup", function(e){
   if(e.code==="ArrowDown") softDrop = false;
 });
 
-function bindHold(el, fn){
-  el.addEventListener("click", function(){ fn(); });
+// 画面ボタン: 押した瞬間に反応。repeat=true なら押しっぱなしで連続入力
+function bindHold(el, fn, repeat){
+  var t1 = null, t2 = null;
+  function stop(){ clearTimeout(t1); clearInterval(t2); t1 = t2 = null; }
+  el.addEventListener("pointerdown", function(e){
+    e.preventDefault();
+    try{ el.setPointerCapture(e.pointerId); }catch(_){}
+    fn();
+    if(repeat){ stop(); t1 = setTimeout(function(){ t2 = setInterval(fn, 70); }, 180); }
+  });
+  ["pointerup","pointercancel","lostpointercapture"].forEach(function(ev){ el.addEventListener(ev, stop); });
+  el.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 }
-bindHold(document.getElementById("btnLeft"), function(){ tryMove(-1); });
-bindHold(document.getElementById("btnRight"), function(){ tryMove(1); });
+bindHold(document.getElementById("btnLeft"), function(){ tryMove(-1); }, true);
+bindHold(document.getElementById("btnRight"), function(){ tryMove(1); }, true);
 bindHold(document.getElementById("btnRotL"), function(){ tryRotate(-1); });
 bindHold(document.getElementById("btnRotR"), function(){ tryRotate(1); });
+bindHold(document.getElementById("btnDrop"), function(){ hardDrop(); });
 var downBtn = document.getElementById("btnDown");
-downBtn.addEventListener("pointerdown", function(){ softDrop = true; });
-downBtn.addEventListener("pointerup", function(){ softDrop = false; });
-downBtn.addEventListener("pointerleave", function(){ softDrop = false; });
+downBtn.addEventListener("pointerdown", function(e){ e.preventDefault(); try{ downBtn.setPointerCapture(e.pointerId); }catch(_){} softDrop = true; });
+["pointerup","pointercancel","lostpointercapture"].forEach(function(ev){ downBtn.addEventListener(ev, function(){ softDrop = false; }); });
+downBtn.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+
+// 盤面のタッチ操作: 左右スワイプ=移動 / タップ=回転（右半分→右回転, 左半分→左回転）
+// 下へ素早くはじく=一気に落とす / 下へ押さえたまま=ゆっくり落とす
+(function(){
+  var wrap = document.querySelector(".board-wrap");
+  var g = null;
+  wrap.addEventListener("pointerdown", function(e){
+    if(e.pointerType === "mouse") return;
+    if(e.target.closest(".overlay")) return;
+    e.preventDefault();
+    try{ wrap.setPointerCapture(e.pointerId); }catch(_){}
+    var r = boardCanvas.getBoundingClientRect();
+    g = {id:e.pointerId, x0:e.clientX, y0:e.clientY, t0:performance.now(), cols:0, cw:r.width/COLS, max:0, left:r.left, w:r.width, soft:false};
+  });
+  wrap.addEventListener("pointermove", function(e){
+    if(!g || e.pointerId !== g.id) return;
+    var dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+    g.max = Math.max(g.max, Math.abs(dx), Math.abs(dy));
+    var step = g.cw * 0.75;
+    var target = dx > 0 ? Math.floor(dx/step) : -Math.floor(-dx/step);
+    while(g.cols < target){ tryMove(1); g.cols++; }
+    while(g.cols > target){ tryMove(-1); g.cols--; }
+    var wantSoft = dy > g.cw*1.2 && Math.abs(dy) > Math.abs(dx);
+    if(wantSoft !== g.soft){ g.soft = wantSoft; softDrop = wantSoft; }
+  });
+  function end(e){
+    if(!g || e.pointerId !== g.id) return;
+    var dt = performance.now() - g.t0, dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+    if(e.type === "pointerup"){
+      if(g.max < 12 && dt < 350){
+        tryRotate(e.clientX >= g.left + g.w/2 ? 1 : -1);
+      } else if(g.cols === 0 && dy > g.cw*1.5 && dy > Math.abs(dx)*1.5 && dt < 280){
+        hardDrop();
+      }
+    }
+    if(g.soft) softDrop = false;
+    g = null;
+  }
+  wrap.addEventListener("pointerup", end);
+  wrap.addEventListener("pointercancel", end);
+})();
+
+// ---------- PC / スマホ レイアウト切り替え ----------
+function isMobileLayout(){
+  return window.matchMedia("(pointer: coarse)").matches || window.innerWidth < 700;
+}
+function applyLayout(){
+  var root = document.documentElement;
+  var mobile = isMobileLayout();
+  root.classList.toggle("mobile", mobile);
+  if(!mobile){ root.style.removeProperty("--bw"); return; }
+  var vw = window.innerWidth, vh = window.innerHeight;
+  var ctl = document.querySelector(".controls").offsetHeight || 62;
+  var availH = vh - ctl - 10 /*gap*/ - 18 /*page padding*/ - 14 /*board frame*/;
+  var safe = parseFloat(getComputedStyle(root).paddingTop) + parseFloat(getComputedStyle(root).paddingBottom) || 0;
+  availH -= safe;
+  var availW = vw - 16 /*page padding*/ - 84 /*side*/ - 8 /*gap*/ - 14 /*board frame*/;
+  var bw = Math.max(120, Math.floor(Math.min(availW, availH/2)));
+  root.style.setProperty("--bw", bw + "px");
+}
+applyLayout();
+window.addEventListener("resize", applyLayout);
+window.addEventListener("orientationchange", function(){ setTimeout(applyLayout, 200); });
 
 document.getElementById("startBtn").addEventListener("click", startGame);
 document.getElementById("retryBtn").addEventListener("click", startGame);
