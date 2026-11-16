@@ -8,7 +8,6 @@
 出力（いずれも透明背景の PNG）:
     sprites/big_0.png .. big_3.png  大まんまる（行=アトラスの色番号）。顔はゲーム側で描く
     sprites/stone.png               石まんまる（1マス）
-    sprites/stone_big.png           大きな石まんまる（2×2）
 
 座標系: 1マス = 1.0。x が右、z が上。カメラは -Y 側から正面を写す正射影。
 既存タイル（tiles/atlas.png）と同じく、描画範囲は上下左右に 0.15 マスはみ出した
@@ -192,7 +191,7 @@ def slime_material(rgb):
     return m
 
 
-def stone_material(cells):
+def stone_material():
     m = bpy.data.materials.new("stone")
     m.use_nodes = True
     nt = m.node_tree
@@ -233,7 +232,7 @@ def stone_material(cells):
     # ひび割れ（ボロノイの境界を、別のノイズで一部だけ残す）
     vor = n.new("ShaderNodeTexVoronoi")
     vor.feature = "DISTANCE_TO_EDGE"
-    vor.inputs["Scale"].default_value = 2.2 / cells
+    vor.inputs["Scale"].default_value = 2.2
     l.new(tc.outputs["Object"], vor.inputs["Vector"])
     edge = n.new("ShaderNodeMapRange")
     edge.inputs["From Min"].default_value = 0.0
@@ -341,19 +340,17 @@ def build_slime(cells, rgb):
     return sc
 
 
-def build_stone(cells):
+def build_stone():
+    """1マスの石まんまる（大まんまるは石にならない）"""
     sc = reset_scene()
-    span = float(cells)
+    span = 1.0
     cx = span / 2
-    if cells == 1:
-        radii = (0.47, 0.40, 0.36)
-    else:
-        radii = (0.97, 0.82, 0.88)
+    radii = (0.47, 0.40, 0.36)
     center = (cx, 0.0, 0.03 + radii[2])
     body = ellipsoid("stone", center, radii, segs=128)
     rockify(body, 0.045 * span, 0.25 * span)
-    body.data.materials.append(stone_material(cells))
-    k = span if cells == 1 else 1.8
+    body.data.materials.append(stone_material())
+    k = span
     groove = flat_material((0.10, 0.09, 0.11), 0.7)
     # 固まった顔: 閉じた目「︶ ︶」と、ぶすっとした口「へ」
     ez = center[2] + 0.06 * k
@@ -365,7 +362,7 @@ def build_stone(cells):
     mouth = [(cx - 0.06 * k, mz - 0.018 * k), (cx, mz + 0.012 * k), (cx + 0.06 * k, mz - 0.018 * k)]
     surface_curve("mouth", mouth, center, radii, 0.013 * k, -0.004, groove)
     size = span + 2 * PAD
-    add_camera(sc, cx, span / 2, size, 160 if cells == 1 else 320)
+    add_camera(sc, cx, span / 2, size, 160)
     add_lights(sc, cx, center[2], span)
     return sc
 
@@ -382,8 +379,7 @@ def main():
     for i, rgb in enumerate(SLIME_COLORS):
         sc = build_slime(2, rgb)
         render(sc, os.path.join(OUT, "big_%d.png" % i))
-    render(build_stone(1), os.path.join(OUT, "stone.png"))
-    render(build_stone(2), os.path.join(OUT, "stone_big.png"))
+    render(build_stone(), os.path.join(OUT, "stone.png"))
 
 
 if __name__ == "__main__":

@@ -449,7 +449,6 @@ var ATLAS_NF = loadImg("tiles/atlas_noface.png");
 // Blenderで作った大まんまる（2×2）と石まんまる。tools/blender/render_extras.py で作成
 var BIG_IMG = [0,1,2,3].map(function(i){ return loadImg("sprites/big_" + i + ".png"); });
 var STONE_IMG = loadImg("sprites/stone.png");
-var STONE_BIG_IMG = loadImg("sprites/stone_big.png");
 var BIG_FACE = 1.7;   // 大まんまるの顔の大きさ（render_extras.py の FACE_SCALE と合わせる）
 var BIG_EYE_Y = 0.946; // 大まんまるの目の高さ（2×2の上端からのマス数）
 
@@ -900,7 +899,7 @@ function lockPiece(){
   startResolvePass();
 }
 
-// 1マスのスライム・石は1つずつ、大まんまる（大きな石）は2×2のかたまりで落とす
+// 1マスのスライム・石は1つずつ、大まんまるは2×2のかたまりで落とす
 function moveCell(r, c, nr){
   var x = grid[r][c];
   grid[r][c] = null;
@@ -1006,11 +1005,6 @@ function bigNeighbors(r, c){
     return p[0]>=0 && p[0]<ROWS && p[1]>=0 && p[1]<COLS;
   });
 }
-// 大まんまる（石も）の4マスの位置
-function bigCells(r, c){
-  var x = grid[r][c], tr = r - (x.bq>>1), tc = c - (x.bq&1);
-  return [[tr,tc],[tr,tc+1],[tr+1,tc],[tr+1,tc+1]];
-}
 
 function startResolvePass(){
   applyGravity();
@@ -1097,15 +1091,13 @@ function resolveGroups(){
       if(x.big && x.bq === 0) popBigs.push({r:m.row, c:m.col, color:x.c});
     });
   });
-  // 大まんまるのとなりの石はいっしょに壊れる（大きな石は4マスまとめて）
+  // 大まんまるのとなりの石はいっしょに壊れる
   popBigs.forEach(function(b){
     bigNeighbors(b.r, b.c).forEach(function(p){
-      var x = grid[p[0]][p[1]];
-      if(!x || !x.stone) return;
-      (x.big ? bigCells(p[0], p[1]) : [p]).forEach(function(q){
-        var k = q[0]+"_"+q[1];
-        if(!seen[k]){ seen[k] = true; crumbleCells.push({row:q[0], col:q[1]}); }
-      });
+      var x = grid[p[0]][p[1]], k = p[0]+"_"+p[1];
+      if(!x || !x.stone || seen[k]) return;
+      seen[k] = true;
+      crumbleCells.push({row:p[0], col:p[1]});
     });
     sparkle((b.c+1)*CELL, (b.r)*CELL, COLORS[b.color].fill, 18, 1);
   });
@@ -1157,15 +1149,15 @@ function finishPop(){
   startResolvePass();
 }
 
-// 置いてから30秒たったスライムは石になる（色のつながりが切れる）
+// 置いてから30秒たったスライムは石になる（色のつながりが切れる）。大まんまるは石にならない
 function petrify(){
   var now = performance.now(), any = false;
   for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){
     var x = grid[r][c];
-    if(!x || x.stone || ageOf(x) < STONE_MS) continue;
+    if(!x || x.stone || x.big || ageOf(x) < STONE_MS) continue;
     x.stone = true; x.c = -1; x.stoneAt = now;
     x.land = now; x.amp = 0.18;
-    if(!x.big || x.bq === 0) chips((c + (x.big ? 1 : 0.5))*CELL, (r - (x.big ? 0 : 0.5))*CELL, x.big ? 8 : 4);
+    chips((c + 0.5)*CELL, (r - 0.5)*CELL, 4);
     any = true;
   }
   if(any) playSynth("stone");
@@ -1487,7 +1479,7 @@ function drawBoard(now){
       sumx += m.vc*CELL + CELL/2;
       var t = landTerm(m.cell, now);
       if(Math.abs(t) > Math.abs(term)) term = t;
-      m.warn = m.cell.stone ? 0 : Math.max(0, (ageOf(m.cell) - (STONE_MS - WARN_MS))/WARN_MS);
+      m.warn = (m.cell.stone || m.cell.big) ? 0 : Math.max(0, (ageOf(m.cell) - (STONE_MS - WARN_MS))/WARN_MS);
       if(!m.warn) warnAll = false;
       // 接続マスク
       var k = 0;
@@ -1538,7 +1530,6 @@ function drawBoard(now){
     var cell = m.cell, g = m.g;
     if(cell.big){
       if(cell.bq !== 2) return; // 大まんまるは左下のマスの番に1枚絵で描く
-      if(cell.stone){ drawSpriteG(bctx, STONE_BIG_IMG.img, 2, m.vc, m.vr, g); return; }
       var bi = BIG_IMG[COLORS[cell.c].sprite];
       var fade = g.mergeP === undefined ? 1 : Math.min(1, g.mergeP/0.45);
       if(fade < 1){
@@ -1552,7 +1543,6 @@ function drawBoard(now){
         drawSpriteG(bctx, bi.img, 2, m.vc, m.vr, g, fade);
         drawFaceG(bctx, moodOf(cell), m.vc, m.vr, 2, {cx:g.cx, bottom:g.bottom, sx:g.sx, sy:g.sy, ox:g.ox, alpha:g.alpha*fade});
       }
-      if(m.warn && STONE_BIG_IMG.ready) drawSpriteG(bctx, STONE_BIG_IMG.img, 2, m.vc, m.vr, g, 0.6*m.warn);
       return;
     }
     if(cell.stone){
