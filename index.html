@@ -1155,10 +1155,10 @@ function finishPop(){
         var x = grid[r][sc];
         if(!x || x.big || x.stone || x.hop) continue;
         if(tc < 0 || tc >= COLS){ x.land = now; x.amp = 0.4; continue; } // 壁: その場でぷるん
-        // 跳ね先: 同じ段があいていればそこ、ふさがっていればその列の山の上へ
-        var tr = r;
-        if(grid[tr][tc]){ while(tr >= 1 && grid[tr][tc]) tr--; }
-        if(tr < 1) { x.land = now; x.amp = 0.4; continue; }
+        // 跳ね先: 同じ段があいていればそこ。ふさがっていれば1段上に乗る。
+        // となりの列が自分の段から2段以上積まれているときは積み上がらず、その場でぷるん
+        var tr = grid[r][tc] ? r - 1 : r;
+        if(tr < 1 || grid[tr][tc]){ x.land = now; x.amp = 0.4; continue; }
         grid[r][sc] = null;
         grid[tr][tc] = x;
         x.hop = {t0:now, dur:HOP_MS, dx:-dir, dy:r - tr};
