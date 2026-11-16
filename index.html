@@ -990,7 +990,6 @@ function makeBigs(squares){
     for(var q=0;q<4;q++){
       var x = grid[s.r + (q>>1)][s.c + (q&1)];
       x.big = id; x.bq = q;
-      x.t0 = gclock;     // 合体したらごきげんが戻る
       x.bigAt = now;
       x.land = now; x.amp = 0.32;
     }
@@ -1541,7 +1540,8 @@ function drawBoard(now){
       }
       if(bi.ready){
         drawSpriteG(bctx, bi.img, 2, m.vc, m.vr, g, fade);
-        drawFaceG(bctx, moodOf(cell), m.vc, m.vr, 2, {cx:g.cx, bottom:g.bottom, sx:g.sx, sy:g.sy, ox:g.ox, alpha:g.alpha*fade});
+        // 大まんまるはずっとにこにこ（ごきげん度は変わらず、石にもならない）
+        drawFaceG(bctx, 0, m.vc, m.vr, 2, {cx:g.cx, bottom:g.bottom, sx:g.sx, sy:g.sy, ox:g.ox, alpha:g.alpha*fade});
       }
       return;
     }
