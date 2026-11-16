@@ -370,7 +370,7 @@ html.mobile .pc-hint{display:none;}
         <h2>まんまるチェイン</h2>
         <p class="pc-hint">← → 移動 / ↑・X 右回転 / Z 左回転<br>↓ ゆっくり落とす / Space 一気に落とす</p>
         <p class="touch-hint">左右スワイプで移動・タップで回転<br>下スワイプで一気に落とす</p>
-        <p class="rule-hint">2×2でくっつくと<b>大まんまる</b>に合体！<br>5つ目がとなりに来ると消えて、まわりをぽよんと弾くよ<br>30秒ほうっておくと<b>石</b>に…（石は大まんまるで壊せる）</p>
+        <p class="rule-hint">2×2でくっつくと<b>大まんまる</b>に合体！<br>5つ目がとなりに来ると消えて、まわりをぽよんと弾くよ<br>30秒ほうっておくと<b>石</b>に…（くっつけるとごきげん回復・石は大まんまるで壊せる）</p>
         <button class="primary" id="startBtn">はじめる</button>
       </div>
       <div class="overlay" id="overOverlay" hidden>
@@ -696,6 +696,26 @@ function playSynth(kind){
   }catch(e){}
 }
 
+// 結合したら、つながったかたまり全体のごきげんを「にこにこ」に戻す
+function cheerUp(r, c){
+  var start = grid[r][c];
+  if(!start || start.stone || start.big) return;
+  var seen = {}, stack = [[r, c]];
+  seen[r+"_"+c] = true;
+  while(stack.length){
+    var p = stack.pop(), x = grid[p[0]][p[1]];
+    x.t0 = gclock;
+    [[-1,0],[1,0],[0,-1],[0,1]].forEach(function(d){
+      var nr = p[0]+d[0], nc = p[1]+d[1], k = nr+"_"+nc;
+      if(nr<0 || nr>=ROWS || nc<0 || nc>=COLS || seen[k]) return;
+      var n = grid[nr][nc];
+      if(!n || n.stone || n.big || n.c !== start.c || (n.fy||0) < 0 || n.hop) return;
+      seen[k] = true;
+      stack.push([nr, nc]);
+    });
+  }
+}
+
 // 着地したセルが同じ色のセルと新しく隣り合ったか（同じペア同士は除外）
 function joinsNeighbor(r, c){
   var cell = grid[r][c];
@@ -884,7 +904,7 @@ function lockPiece(){
   placed.forEach(function(p){
     var cell = grid[p.row][p.col];
     if(off < -0.02){ cell.fy = off; cell.vy = off < -1 ? 14 : 5; }
-    else { bump(p.row, p.col, 0.38); landedImm = true; if(joinsNeighbor(p.row, p.col)) joined = true; }
+    else { bump(p.row, p.col, 0.38); landedImm = true; if(joinsNeighbor(p.row, p.col)){ joined = true; cheerUp(p.row, p.col); } }
   });
   if(landedImm) playLand();
   if(joined) playJoin();
@@ -998,9 +1018,10 @@ function makeBigs(squares){
   playJoin();
 }
 
-// 大まんまるのまわり（上下左右に接する8マス）
+// 大まんまるのまわり（上下左右に接する8マス＋斜めに接する4マス）
 function bigNeighbors(r, c){
-  return [[r-1,c],[r-1,c+1],[r+2,c],[r+2,c+1],[r,c-1],[r+1,c-1],[r,c+2],[r+1,c+2]].filter(function(p){
+  return [[r-1,c],[r-1,c+1],[r+2,c],[r+2,c+1],[r,c-1],[r+1,c-1],[r,c+2],[r+1,c+2],
+          [r-1,c-1],[r-1,c+2],[r+2,c-1],[r+2,c+2]].filter(function(p){
     return p[0]>=0 && p[0]<ROWS && p[1]>=0 && p[1]<COLS;
   });
 }
@@ -1027,7 +1048,7 @@ function updateHops(now){
       if((x.fy||0) >= 0){
         bump(r, c, 0.36);
         landedNow = true;
-        if(joinsNeighbor(r, c)) joinedNow = true;
+        if(joinsNeighbor(r, c)){ joinedNow = true; cheerUp(r, c); }
       }
     } else still = true;
   }
@@ -1048,7 +1069,7 @@ function updateDrops(dt){
       var v = x.vy; x.fy = 0; x.vy = 0;
       bump(r, c, 0.22 + Math.min(0.2, v*0.012));
       landedNow = true;
-      if(joinsNeighbor(r, c)) joinedNow = true;
+      if(joinsNeighbor(r, c)){ joinedNow = true; cheerUp(r, c); }
     } else still = true;
   }
   if(landedNow) playLand();
@@ -1090,7 +1111,7 @@ function resolveGroups(){
       if(x.big && x.bq === 0) popBigs.push({r:m.row, c:m.col, color:x.c});
     });
   });
-  // 大まんまるのとなりの石はいっしょに壊れる
+  // 大まんまるのとなり（斜めも）の石はいっしょに壊れる
   popBigs.forEach(function(b){
     bigNeighbors(b.r, b.c).forEach(function(p){
       var x = grid[p[0]][p[1]], k = p[0]+"_"+p[1];
@@ -1123,12 +1144,14 @@ function finishPop(){
     chips((m.col+0.5)*CELL, (m.row-0.5)*CELL, 7);
   });
   if(crumbleCells.length) playSynth("crumble");
-  // 大まんまるが消えたら、左右のとなりのスライムを外側の列へぽよんと弾く
+  // 大まんまるが消えたら、左右（斜めに接するものも）のスライムを外側の列へぽよんと弾く
+  // 下の段から順に跳ばすので、跳ねた先でも上下の並びは変わらない
   popBigs.forEach(function(b){
     [[-1, b.c-1], [1, b.c+2]].forEach(function(side){
       var dir = side[0], sc = side[1], tc = sc + dir;
       if(sc < 0 || sc >= COLS) return;
-      for(var r=b.r; r<=b.r+1; r++){
+      for(var r=b.r+2; r>=b.r-1; r--){
+        if(r < 0 || r >= ROWS) continue;
         var x = grid[r][sc];
         if(!x || x.big || x.stone || x.hop) continue;
         if(tc < 0 || tc >= COLS){ x.land = now; x.amp = 0.4; continue; } // 壁: その場でぷるん
