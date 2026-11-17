@@ -209,6 +209,8 @@ canvas#board{
   margin:0;
 }
 .overlay p{margin:0;font-size:14px;opacity:0.9;}
+.overlay .rule-hint{font-size:12px;line-height:1.55;background:rgba(255,255,255,0.14);border-radius:10px;padding:6px 10px;}
+.overlay .rule-hint b{color:#ffe08a;}
 .overlay button{
   margin-top:6px;
 }
@@ -387,6 +389,7 @@ html.mobile .pc-hint{display:none;}
         <h2>まんまるチェイン</h2>
         <p class="pc-hint">← → 移動 / ↑・X 右回転 / Z 左回転<br>↓ ゆっくり落とす / Space 一気に落とす</p>
         <p class="touch-hint">左右スワイプで移動・タップで回転<br>下スワイプで一気に落とす</p>
+        <p class="rule-hint">2×2でくっつくと<b>大まんまる</b>に合体！<br>5つ目がとなりに来ると消えて、まわりをぽよんと弾くよ<br>30秒ほうっておくと<b>石</b>に…（くっつけるとごきげん回復・石は大まんまるで壊せる）</p>
         <button class="primary" id="startBtn">はじめる</button>
       </div>
       <div class="overlay" id="overOverlay" hidden>
@@ -453,6 +456,91 @@ ATLAS.onload = function(){ ATLAS_READY = true; if(typeof drawNext==="function") 
 ATLAS.src = "tiles/atlas.png";
 var TILE_PAD = 0.15; // タイルは1マスの1.3倍（上下左右0.15ずつはみ出し）
 
+// 画像をまとめて読み込む（読み込めたら ready=true）
+function loadImg(src){
+  var o = {img:new Image(), ready:false};
+  o.img.onload = function(){ o.ready = true; if(typeof drawNext==="function") drawNext(); if(mode==="idle"||mode==="over") drawBoard(performance.now()); };
+  o.img.src = src;
+  return o;
+}
+// 目を消したアトラス（ごきげん度の表情はゲーム側で描く）。tools/make_noface_atlas.py で作成
+var ATLAS_NF = loadImg("tiles/atlas_noface.png");
+// Blenderで作った大まんまる（2×2）と石まんまる。tools/blender/render_extras.py で作成
+var BIG_IMG = [0,1,2,3].map(function(i){ return loadImg("sprites/big_" + i + ".png"); });
+var STONE_IMG = loadImg("sprites/stone.png");
+var BIG_FACE = 1.7;   // 大まんまるの顔の大きさ（render_extras.py の FACE_SCALE と合わせる）
+var BIG_EYE_Y = 0.946; // 大まんまるの目の高さ（2×2の上端からのマス数）
+
+// ---------- ごきげん度 ----------
+var MOOD_MS = 10000;  // 10秒ごとに にこにこ → ふつう → ぶすっ
+var STONE_MS = 30000; // 30秒で石になる
+var WARN_MS = 3000;   // 石になる直前のぷるぷる
+var gclock = 0;       // ゲーム内の時計（ms）
+function ageOf(cell){ return gclock - (cell.t0 || 0); }
+function moodOf(cell){
+  var a = ageOf(cell);
+  return a < MOOD_MS ? 0 : a < MOOD_MS*2 ? 1 : 2;
+}
+
+// 顔を描く。(fx, fy)=両目のまん中, u=1マスぶんの大きさ(px)×顔の倍率, sx/sy=変形
+// mood: 0=にこにこ 1=ふつう 2=ぶすっ
+var FACE_INK = "#2b2f45";
+function drawFace(ctx, mood, fx, fy, u, sx, sy, alpha){
+  ctx.save();
+  ctx.globalAlpha = alpha === undefined ? 1 : alpha;
+  ctx.translate(fx, fy);
+  ctx.scale(sx, sy);
+  var ex = 0.183*u, lw = Math.max(1.2, 0.024*u);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = FACE_INK; ctx.fillStyle = FACE_INK;
+  if(mood === 0){
+    // ほっぺをぽっと赤く
+    ctx.fillStyle = "rgba(255,110,150,0.32)";
+    [-1,1].forEach(function(s){
+      ctx.beginPath(); ctx.ellipse(s*0.33*u, 0.1*u, 0.075*u, 0.04*u, 0, 0, Math.PI*2); ctx.fill();
+    });
+    // にっこり閉じた目「^ ^」
+    ctx.lineWidth = lw;
+    [-1,1].forEach(function(s){
+      ctx.beginPath(); ctx.arc(s*ex, 0.03*u, 0.048*u, Math.PI*1.12, Math.PI*1.88); ctx.stroke();
+    });
+    // あいた口
+    ctx.fillStyle = "#6e2f42";
+    ctx.beginPath(); ctx.arc(0, 0.06*u, 0.05*u, 0, Math.PI); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = "#ff8fa8";
+    ctx.beginPath(); ctx.ellipse(0, 0.093*u, 0.026*u, 0.014*u, 0, 0, Math.PI*2); ctx.fill();
+  } else if(mood === 1){
+    // ふつう（アトラスと同じ、つやのある黒目）
+    [-1,1].forEach(function(s){
+      ctx.fillStyle = FACE_INK;
+      ctx.beginPath(); ctx.ellipse(s*ex, 0, 0.036*u, 0.074*u, 0, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath(); ctx.arc(s*ex + 0.012*u, -0.03*u, 0.016*u, 0, Math.PI*2); ctx.fill();
+    });
+  } else {
+    // ぶすっ: 半目（まぶたは内側が下がる）と「へ」の口
+    [-1,1].forEach(function(s){
+      var ox = s*ex, rx = 0.038*u, ry = 0.07*u;
+      var yIn = -0.005*u, yOut = -0.03*u; // まぶたの高さ（内側/外側）
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(ox - s*rx*1.6, yIn); ctx.lineTo(ox + s*rx*1.6, yOut);
+      ctx.lineTo(ox + s*rx*1.6, ry*1.2); ctx.lineTo(ox - s*rx*1.6, ry*1.2); ctx.closePath();
+      ctx.clip();
+      ctx.fillStyle = FACE_INK;
+      ctx.beginPath(); ctx.ellipse(ox, 0.005*u, rx, ry, 0, 0, Math.PI*2); ctx.fill();
+      ctx.restore();
+      ctx.lineWidth = lw;
+      ctx.beginPath(); ctx.moveTo(ox - s*rx*1.5, yIn - 0.004*u); ctx.lineTo(ox + s*rx*1.5, yOut - 0.004*u); ctx.stroke();
+    });
+    ctx.lineWidth = lw*0.9;
+    ctx.beginPath();
+    ctx.moveTo(-0.042*u, 0.1*u); ctx.lineTo(0, 0.078*u); ctx.lineTo(0.042*u, 0.1*u);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 function landTerm(cell, now){
   if(!cell.land) return 0;
   var t = (now - cell.land)/1000;
@@ -463,7 +551,10 @@ function landTerm(cell, now){
 // つながっている側はタイルのはみ出しを切り落とし、継ぎ目をわずかに重ねる
 // （タイル端の半透明ピクセルが隣の上に残って線に見えるのを防ぐ）
 var SEAM_OVL = 0.04;
-function drawTileG(ctx, sprite, mask, col, vr, g){
+// グループ変形 g をかけた座標
+function gX(g, x){ return g.cx + (x - g.cx)*g.sx + (g.ox || 0); }
+function gY(g, y){ return g.bottom - (g.bottom - y)*g.sy; }
+function drawTileG(ctx, sprite, mask, col, vr, g, atlas){
   var L = (mask & 8) ? SEAM_OVL : TILE_PAD;
   var R = (mask & 2) ? SEAM_OVL : TILE_PAD;
   var T = (mask & 1) ? SEAM_OVL : TILE_PAD;
@@ -473,21 +564,37 @@ function drawTileG(ctx, sprite, mask, col, vr, g){
   var ppc = AT/(1+TILE_PAD*2); // アトラス上の1マス分のピクセル
   var sx0 = mask*ATS + AG + (TILE_PAD-L)*ppc, sy0 = sprite*ATS + AG + (TILE_PAD-T)*ppc;
   var sw = (1+L+R)*ppc, sh = (1+T+B)*ppc;
-  var X = g.cx + (x - g.cx)*g.sx, Y = g.bottom - (g.bottom - y)*g.sy;
   ctx.save();
   ctx.globalAlpha = g.alpha;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(ATLAS, sx0, sy0, sw, sh, X, Y, w*g.sx, h*g.sy);
+  ctx.drawImage(atlas || ATLAS, sx0, sy0, sw, sh, gX(g, x), gY(g, y), w*g.sx, h*g.sy);
   ctx.restore();
 }
-function drawShadowG(ctx, col, vr, g){
-  var cx = col*CELL + CELL/2, b = vr*CELL;
-  var X = g.cx + (cx - g.cx)*g.sx, Y = g.bottom - (g.bottom - b)*g.sy;
+// 1枚絵のスプライトを描く。cells=1 なら1マス（1.3マス四方）、2 なら 2×2（2.3マス四方）
+// col=左端の列, vr=いちばん下の段
+function drawSpriteG(ctx, img, cells, col, vr, g, alpha){
+  var x = col*CELL - CELL*TILE_PAD, y = (vr-cells)*CELL - CELL*TILE_PAD;
+  var s = CELL*(cells + TILE_PAD*2);
+  ctx.save();
+  ctx.globalAlpha = g.alpha * (alpha === undefined ? 1 : alpha);
+  ctx.imageSmoothingQuality = "high";
+  ctx.drawImage(img, gX(g, x), gY(g, y), s*g.sx, s*g.sy);
+  ctx.restore();
+}
+// 顔をグループ変形つきで描く（1マスのスライム / 大まんまる）
+function drawFaceG(ctx, mood, col, vr, cells, g){
+  var fx, fy, u;
+  if(cells === 2){ fx = (col+1)*CELL; fy = (vr-2)*CELL + BIG_EYE_Y*CELL; u = CELL*BIG_FACE; }
+  else { fx = (col+0.5)*CELL; fy = (vr-1)*CELL + 0.525*CELL; u = CELL; }
+  drawFace(ctx, mood, gX(g, fx), gY(g, fy), u, g.sx, g.sy, g.alpha);
+}
+function drawShadowG(ctx, col, vr, g, wide){
+  var cx = col*CELL + CELL/2 + (wide ? CELL/2 : 0), b = vr*CELL;
   ctx.save();
   ctx.globalAlpha = g.alpha;
   ctx.fillStyle = "rgba(110,50,80,0.14)";
   ctx.beginPath();
-  ctx.ellipse(X, Y - CELL*0.04, CELL*0.42*g.sx, CELL*0.07, 0, 0, Math.PI*2);
+  ctx.ellipse(gX(g, cx), gY(g, b) - CELL*0.04, CELL*(wide ? 0.9 : 0.42)*g.sx, CELL*(wide ? 0.1 : 0.07), 0, 0, Math.PI*2);
   ctx.fill();
   ctx.restore();
 }
@@ -573,16 +680,71 @@ function playLand(){
   }
 }
 
+// ---------- 効果音（合成: 石になる「コッ」/ 大まんまるの「ぽよーん」） ----------
+var lastSynthAt = {};
+function playSynth(kind){
+  if(!audioCtx) return;
+  var now = performance.now();
+  if(now - (lastSynthAt[kind] || 0) < 80) return;
+  lastSynthAt[kind] = now;
+  try{
+    var t = audioCtx.currentTime, o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    if(kind === "boing"){
+      o.type = "sine";
+      o.frequency.setValueAtTime(560, t);
+      o.frequency.exponentialRampToValueAtTime(170, t+0.13);
+      o.frequency.exponentialRampToValueAtTime(460, t+0.3);
+      g.gain.exponentialRampToValueAtTime(0.4, t+0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+0.36);
+    } else if(kind === "crumble"){
+      o.type = "square";
+      o.frequency.setValueAtTime(150, t);
+      o.frequency.exponentialRampToValueAtTime(60, t+0.16);
+      g.gain.exponentialRampToValueAtTime(0.18, t+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+0.2);
+    } else { // stone
+      o.type = "triangle";
+      o.frequency.setValueAtTime(300, t);
+      o.frequency.exponentialRampToValueAtTime(110, t+0.08);
+      g.gain.exponentialRampToValueAtTime(0.45, t+0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t+0.14);
+    }
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(t); o.stop(t+0.45);
+  }catch(e){}
+}
+
+// 結合したら、つながったかたまり全体のごきげんを「にこにこ」に戻す
+function cheerUp(r, c){
+  var start = grid[r][c];
+  if(!start || start.stone || start.big) return;
+  var seen = {}, stack = [[r, c]];
+  seen[r+"_"+c] = true;
+  while(stack.length){
+    var p = stack.pop(), x = grid[p[0]][p[1]];
+    x.t0 = gclock;
+    [[-1,0],[1,0],[0,-1],[0,1]].forEach(function(d){
+      var nr = p[0]+d[0], nc = p[1]+d[1], k = nr+"_"+nc;
+      if(nr<0 || nr>=ROWS || nc<0 || nc>=COLS || seen[k]) return;
+      var n = grid[nr][nc];
+      if(!n || n.stone || n.big || n.c !== start.c || (n.fy||0) < 0 || n.hop) return;
+      seen[k] = true;
+      stack.push([nr, nc]);
+    });
+  }
+}
+
 // 着地したセルが同じ色のセルと新しく隣り合ったか（同じペア同士は除外）
 function joinsNeighbor(r, c){
   var cell = grid[r][c];
-  if(!cell) return false;
+  if(!cell || cell.stone) return false;
   var d = [[-1,0],[1,0],[0,-1],[0,1]];
   for(var i=0;i<4;i++){
     var nr = r+d[i][0], nc = c+d[i][1];
     if(nr<0 || nr>=ROWS || nc<0 || nc>=COLS) continue;
     var n = grid[nr][nc];
-    if(n && n.c === cell.c && (n.fy||0) >= 0 && !(cell.pid && n.pid === cell.pid)) return true;
+    if(n && !n.stone && n.c === cell.c && (n.fy||0) >= 0 && !n.hop && !(cell.pid && n.pid === cell.pid)) return true;
   }
   return false;
 }
@@ -613,20 +775,31 @@ function jiggle(cell, now, row, col){
 var DROP_MS = 620;
 var SOFT_MS = 55;
 var POP_MS = 360;
+var MERGE_MS = 420;  // 大まんまるに合体する「ぷるん」
+var HOP_MS = 340;    // 大まんまるに弾かれて隣の列へ跳ねる時間
+var HOP_H = 0.8;     // 跳ねる高さ（マス）
 
 // ---------- state ----------
-var grid; // grid[row][col] = {c:colorIndex, face:0/1/2} or null
+// grid[row][col] = null または
+//   {c:色番号(石は-1), t0:置いた時刻(gclock), stone:石か, big:大まんまるID, bq:大まんまる内の位置(0左上 1右上 2左下 3右下),
+//    fy/vy:落下アニメ, hop:弾かれ中のアニメ, land/amp:着地のゆれ}
+var grid;
 var cur, nxt;
 var score = 0;
 var best = 0;
 var chainCount = 0;
-var mode = "idle"; // idle | falling | locked | popping | settling | over
+var mode = "idle"; // idle | falling | settling | dropping | merging | popping | over
 var lastTick = 0;
 var fallTimer = 0;
 var popStart = 0;
+var mergeStart = 0;
 var poppingCells = [];
+var popBigs = [];      // 消えている大まんまる（左上の位置）
+var crumbleCells = []; // 大まんまるに壊される石
 var settleQueue = [];
 var softDrop = false;
+var bigSeq = 0;
+var particles = [];
 
 var boardCanvas = document.getElementById("board");
 var bctx = boardCanvas.getContext("2d");
@@ -742,15 +915,15 @@ function hardDrop(){
 function lockPiece(){
   var s = satPos(cur);
   var placed = [];
-  if(cur.row>=0){ grid[cur.row][cur.col] = {c:cur.axisColor, face:cur.axisFace}; placed.push({row:cur.row,col:cur.col}); }
-  if(s.row>=0){ grid[s.row][s.col] = {c:cur.satColor, face:cur.satFace}; placed.push({row:s.row,col:s.col}); }
+  if(cur.row>=0){ grid[cur.row][cur.col] = {c:cur.axisColor, face:cur.axisFace, t0:gclock}; placed.push({row:cur.row,col:cur.col}); }
+  if(s.row>=0){ grid[s.row][s.col] = {c:cur.satColor, face:cur.satFace, t0:gclock}; placed.push({row:s.row,col:s.col}); }
   var off = Math.min(0, (cur.vrow===undefined ? cur.row : cur.vrow) - cur.row);
   var pid = ++pidSeq, joined = false, landedImm = false;
   placed.forEach(function(p){ grid[p.row][p.col].pid = pid; });
   placed.forEach(function(p){
     var cell = grid[p.row][p.col];
     if(off < -0.02){ cell.fy = off; cell.vy = off < -1 ? 14 : 5; }
-    else { bump(p.row, p.col, 0.38); landedImm = true; if(joinsNeighbor(p.row, p.col)) joined = true; }
+    else { bump(p.row, p.col, 0.38); landedImm = true; if(joinsNeighbor(p.row, p.col)){ joined = true; cheerUp(p.row, p.col); } }
   });
   if(landedImm) playLand();
   if(joined) playJoin();
@@ -765,24 +938,37 @@ function lockPiece(){
   startResolvePass();
 }
 
+// 1マスのスライム・石は1つずつ、大まんまるは2×2のかたまりで落とす
+function moveCell(r, c, nr){
+  var x = grid[r][c];
+  grid[r][c] = null;
+  grid[nr][c] = x;
+  x.fy = (x.fy||0) - (nr - r);
+  x.vy = x.vy||0;
+}
 function applyGravity(){
   var moved = false;
-  var landed = [];
-  for(var c=0;c<COLS;c++){
-    var write = ROWS-1;
-    for(var r=ROWS-1;r>=0;r--){
-      if(grid[r][c] !== null){
-        if(write!==r){
-          grid[write][c] = grid[r][c];
-          grid[r][c] = null;
-          moved = true;
-          grid[write][c].fy = (grid[write][c].fy||0) - (write - r);
-          grid[write][c].vy = grid[write][c].vy||0;
-        }
-        write--;
-      }
-    }
+  var units = [];
+  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){
+    var x = grid[r][c];
+    if(!x) continue;
+    if(x.big){ if(x.bq === 0) units.push({r:r, c:c, w:2, bottom:r+1}); }
+    else units.push({r:r, c:c, w:1, bottom:r});
   }
+  // 下にあるものから順に落とす（支えになるものは先に落ち切っている）
+  units.sort(function(a, b){ return b.bottom - a.bottom; });
+  units.forEach(function(u){
+    var d = 0;
+    while(u.bottom+d+1 < ROWS){
+      var free = true;
+      for(var k=0;k<u.w;k++) if(grid[u.bottom+d+1][u.c+k]) free = false;
+      if(!free) break;
+      d++;
+    }
+    if(!d) return;
+    moved = true;
+    for(var rr=u.bottom; rr>=u.r; rr--) for(var k=0;k<u.w;k++) moveCell(rr, u.c+k, rr+d);
+  });
   return moved;
 }
 
@@ -792,28 +978,71 @@ function findGroups(){
   var groups = [];
   for(var r=1;r<ROWS;r++){
     for(var c=0;c<COLS;c++){
-      if(grid[r][c] && !visited[r][c]){
+      if(grid[r][c] && !grid[r][c].stone && !visited[r][c]){
         var color = grid[r][c].c;
         var stack = [{row:r,col:c}];
         visited[r][c] = true;
-        var members = [];
+        var members = [], hasBig = false;
         while(stack.length){
           var cell = stack.pop();
           members.push(cell);
+          if(grid[cell.row][cell.col].big) hasBig = true;
           var neigh = [{row:cell.row-1,col:cell.col},{row:cell.row+1,col:cell.col},{row:cell.row,col:cell.col-1},{row:cell.row,col:cell.col+1}];
           for(var i=0;i<neigh.length;i++){
             var nr=neigh[i].row, nc=neigh[i].col;
-            if(nr>=1 && nr<ROWS && nc>=0 && nc<COLS && !visited[nr][nc] && grid[nr][nc] && grid[nr][nc].c===color){
+            if(nr>=1 && nr<ROWS && nc>=0 && nc<COLS && !visited[nr][nc] && grid[nr][nc] && !grid[nr][nc].stone && grid[nr][nc].c===color){
               visited[nr][nc]=true;
               stack.push({row:nr,col:nc});
             }
           }
         }
-        if(members.length>=4) groups.push({color:color, members:members});
+        // 大まんまるは4マスぶん（4個ぶん）として数える
+        if(members.length>=4) groups.push({color:color, members:members, hasBig:hasBig});
       }
     }
   }
   return groups;
+}
+
+// グループの中の 2×2（まだ大まんまるになっていないもの）を下の段から探す
+function findSquares(g){
+  var inG = {}, used = {}, out = [];
+  g.members.forEach(function(m){ if(!grid[m.row][m.col].big) inG[m.row+"_"+m.col] = true; });
+  var cand = g.members.slice().sort(function(a, b){ return b.row - a.row || a.col - b.col; });
+  cand.forEach(function(m){
+    var r = m.row - 1, c = m.col; // m を左下とした 2×2
+    var ks = [r+"_"+c, r+"_"+(c+1), (r+1)+"_"+c, (r+1)+"_"+(c+1)];
+    if(r < 1) return;
+    if(ks.every(function(k){ return inG[k] && !used[k]; })){
+      ks.forEach(function(k){ used[k] = true; });
+      out.push({r:r, c:c});
+    }
+  });
+  return out;
+}
+
+// 2×2 をぷるんと合体させて大まんまるにする
+function makeBigs(squares){
+  var now = performance.now();
+  squares.forEach(function(s){
+    var id = ++bigSeq;
+    for(var q=0;q<4;q++){
+      var x = grid[s.r + (q>>1)][s.c + (q&1)];
+      x.big = id; x.bq = q;
+      x.bigAt = now;
+      x.land = now; x.amp = 0.32;
+    }
+    sparkle((s.c+1)*CELL, (s.r+0.2)*CELL, COLORS[grid[s.r][s.c].c].fill, 12, 0.5);
+  });
+  playJoin();
+}
+
+// 大まんまるのまわり（上下左右に接する8マス＋斜めに接する4マス）
+function bigNeighbors(r, c){
+  return [[r-1,c],[r-1,c+1],[r+2,c],[r+2,c+1],[r,c-1],[r+1,c-1],[r,c+2],[r+1,c+2],
+          [r-1,c-1],[r-1,c+2],[r+2,c-1],[r+2,c+2]].filter(function(p){
+    return p[0]>=0 && p[0]<ROWS && p[1]>=0 && p[1]<COLS;
+  });
 }
 
 function startResolvePass(){
@@ -822,10 +1051,29 @@ function startResolvePass(){
   resolveGroups();
 }
 
-// 落下中のセルがあるか
+// 落下中・弾かれ中のセルがあるか
 function anyDropping(){
-  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){ var x=grid[r][c]; if(x && (x.fy||0) < 0) return true; }
+  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){ var x=grid[r][c]; if(x && ((x.fy||0) < 0 || x.hop)) return true; }
   return false;
+}
+// 弾かれて跳ねているセルを進める。全部終わったら true
+function updateHops(now){
+  var still = false, landedNow = false, joinedNow = false;
+  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){
+    var x = grid[r][c];
+    if(!x || !x.hop) continue;
+    if(now - x.hop.t0 >= x.hop.dur){
+      x.hop = null;
+      if((x.fy||0) >= 0){
+        bump(r, c, 0.36);
+        landedNow = true;
+        if(joinsNeighbor(r, c)){ joinedNow = true; cheerUp(r, c); }
+      }
+    } else still = true;
+  }
+  if(landedNow) playLand();
+  if(joinedNow) playJoin();
+  return !still;
 }
 // 重力加速でなめらかに落とす。全部着地したら true
 function updateDrops(dt){
@@ -833,13 +1081,14 @@ function updateDrops(dt){
   for(var r=ROWS-1;r>=0;r--) for(var c=0;c<COLS;c++){
     var x = grid[r][c];
     if(!x || (x.fy||0) >= 0) continue;
+    if(x.hop){ still = true; continue; } // 跳ね終わってから落ちる
     x.vy = Math.min(24, (x.vy||0) + 70*s);
     x.fy += x.vy*s;
     if(x.fy >= 0){
       var v = x.vy; x.fy = 0; x.vy = 0;
       bump(r, c, 0.22 + Math.min(0.2, v*0.012));
       landedNow = true;
-      if(joinsNeighbor(r, c)) joinedNow = true;
+      if(joinsNeighbor(r, c)){ joinedNow = true; cheerUp(r, c); }
     } else still = true;
   }
   if(landedNow) playLand();
@@ -849,7 +1098,19 @@ function updateDrops(dt){
 
 function resolveGroups(){
   var groups = findGroups();
-  if(groups.length===0){
+  // 1) 2×2 でつながったら、消えずに合体して大まんまるになる
+  var squares = [];
+  groups.forEach(function(g){ if(!g.hasBig) squares = squares.concat(findSquares(g)); });
+  if(squares.length){
+    makeBigs(squares);
+    chainVal.textContent = "がったい!";
+    mode = "merging";
+    mergeStart = performance.now();
+    return;
+  }
+  // 2) 大まんまるは5つ目がとなりに来たら消える。ふつうのスライムは4つで消える
+  var pops = groups.filter(function(g){ return !g.hasBig || g.members.length >= 5; });
+  if(pops.length===0){
     // check game over
     if(grid[0].some(function(cell){return cell!==null;})){
       endGame();
@@ -859,26 +1120,137 @@ function resolveGroups(){
     return;
   }
   chainCount++;
-  poppingCells = [];
-  var total = 0;
-  groups.forEach(function(g){ total += g.members.length; g.members.forEach(function(m){ poppingCells.push(m); }); });
-  var gain = total*10*chainCount + (groups.length>1 ? groups.length*40 : 0);
+  poppingCells = []; popBigs = []; crumbleCells = [];
+  var total = 0, seen = {};
+  pops.forEach(function(g){
+    total += g.members.length;
+    g.members.forEach(function(m){
+      poppingCells.push(m);
+      var x = grid[m.row][m.col];
+      if(x.big && x.bq === 0) popBigs.push({r:m.row, c:m.col, color:x.c});
+    });
+  });
+  // 大まんまるのとなり（斜めも）の石はいっしょに壊れる
+  popBigs.forEach(function(b){
+    bigNeighbors(b.r, b.c).forEach(function(p){
+      var x = grid[p[0]][p[1]], k = p[0]+"_"+p[1];
+      if(!x || !x.stone || seen[k]) return;
+      seen[k] = true;
+      crumbleCells.push({row:p[0], col:p[1]});
+    });
+    sparkle((b.c+1)*CELL, (b.r)*CELL, COLORS[b.color].fill, 18, 1);
+  });
+  var gain = total*10*chainCount + (pops.length>1 ? pops.length*40 : 0)
+           + popBigs.length*100*chainCount + crumbleCells.length*30;
   score += gain;
   scoreVal.textContent = String(score);
+  var head = popBigs.length ? "ぽよーん! " : "";
   if(chainCount>1){
-    chainVal.textContent = chainCount + "れんさ! +" + gain;
+    chainVal.textContent = head + chainCount + "れんさ! +" + gain;
   } else {
-    chainVal.textContent = "+" + gain;
+    chainVal.textContent = head + "+" + gain;
   }
+  if(popBigs.length) playSynth("boing");
   mode = "popping";
   popStart = performance.now();
 }
 
 function finishPop(){
+  var now = performance.now();
   poppingCells.forEach(function(m){ grid[m.row][m.col] = null; });
-  poppingCells = [];
+  crumbleCells.forEach(function(m){
+    grid[m.row][m.col] = null;
+    chips((m.col+0.5)*CELL, (m.row-0.5)*CELL, 7);
+  });
+  if(crumbleCells.length) playSynth("crumble");
+  // 大まんまるが消えたら、左右（斜めに接するものも）のスライムを外側の列へぽよんと弾く
+  // 下の段から順に跳ばすので、跳ねた先でも上下の並びは変わらない
+  popBigs.forEach(function(b){
+    [[-1, b.c-1], [1, b.c+2]].forEach(function(side){
+      var dir = side[0], sc = side[1], tc = sc + dir;
+      if(sc < 0 || sc >= COLS) return;
+      for(var r=b.r+2; r>=b.r-1; r--){
+        if(r < 0 || r >= ROWS) continue;
+        var x = grid[r][sc];
+        if(!x || x.big || x.stone || x.hop) continue;
+        if(tc < 0 || tc >= COLS){ x.land = now; x.amp = 0.4; continue; } // 壁: その場でぷるん
+        // 跳ね先: 同じ段があいていればそこ。ふさがっていれば1段上に乗る。
+        // となりの列が自分の段から2段以上積まれているときは積み上がらず、その場でぷるん
+        var tr = grid[r][tc] ? r - 1 : r;
+        if(tr < 1 || grid[tr][tc]){ x.land = now; x.amp = 0.4; continue; }
+        grid[r][sc] = null;
+        grid[tr][tc] = x;
+        x.hop = {t0:now, dur:HOP_MS, dx:-dir, dy:r - tr};
+        x.fy = 0; x.vy = 0;
+      }
+    });
+  });
+  poppingCells = []; popBigs = []; crumbleCells = [];
   mode = "settling";
   startResolvePass();
+}
+
+// 置いてから30秒たったスライムは石になる（色のつながりが切れる）。大まんまるは石にならない
+function petrify(){
+  var now = performance.now(), any = false;
+  for(var r=0;r<ROWS;r++) for(var c=0;c<COLS;c++){
+    var x = grid[r][c];
+    if(!x || x.stone || x.big || ageOf(x) < STONE_MS) continue;
+    x.stone = true; x.c = -1; x.stoneAt = now;
+    x.land = now; x.amp = 0.18;
+    chips((c + 0.5)*CELL, (r - 0.5)*CELL, 4);
+    any = true;
+  }
+  if(any) playSynth("stone");
+}
+
+// ---------- パーティクル（きらきら / 石のかけら） ----------
+function sparkle(x, y, color, n, power){
+  for(var i=0;i<n;i++){
+    var a = Math.PI*2*i/n + Math.random()*0.3, v = (260 + Math.random()*240)*power;
+    particles.push({x:x, y:y, vx:Math.cos(a)*v, vy:Math.sin(a)*v - 120*power, g:500, life:0, max:520, r:CELL*(0.05+Math.random()*0.04), color:color, star:true});
+  }
+}
+function chips(x, y, n){
+  for(var i=0;i<n;i++){
+    var a = -Math.PI*(0.15 + Math.random()*0.7), v = 220 + Math.random()*320;
+    particles.push({x:x + (Math.random()-0.5)*CELL*0.5, y:y, vx:Math.cos(a)*v, vy:Math.sin(a)*v, g:1600, life:0, max:620, r:CELL*(0.04+Math.random()*0.05), color:["#8f8a87","#a9a4a0","#6f6a68"][i%3], rot:Math.random()*6});
+  }
+}
+function updateParticles(dt){
+  var s = dt/1000;
+  particles = particles.filter(function(p){
+    p.life += dt;
+    p.vy += p.g*s; p.x += p.vx*s; p.y += p.vy*s;
+    p.vx *= Math.pow(0.2, s);
+    return p.life < p.max;
+  });
+}
+function drawParticles(ctx){
+  particles.forEach(function(p){
+    var t = p.life/p.max;
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, 1 - t*t);
+    ctx.fillStyle = p.color;
+    ctx.translate(p.x, p.y);
+    if(p.star){
+      var r = p.r*(1 - t*0.5);
+      ctx.beginPath();
+      for(var i=0;i<8;i++){
+        var rr = i%2 ? r*0.38 : r, a = i*Math.PI/4;
+        ctx.lineTo(Math.cos(a)*rr, Math.sin(a)*rr);
+      }
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = "rgba(255,255,255,0.8)";
+      ctx.beginPath(); ctx.arc(0, 0, r*0.25, 0, Math.PI*2); ctx.fill();
+    } else {
+      ctx.rotate(p.rot + t*4);
+      ctx.beginPath();
+      ctx.moveTo(-p.r, -p.r*0.6); ctx.lineTo(p.r*0.8, -p.r*0.8); ctx.lineTo(p.r, p.r*0.5); ctx.lineTo(-p.r*0.5, p.r*0.9);
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  });
 }
 
 function spawnNext(){
@@ -917,6 +1289,9 @@ function startGame(){
   grid = newGrid();
   score = 0;
   chainCount = 0;
+  gclock = 0;
+  particles = [];
+  poppingCells = []; popBigs = []; crumbleCells = [];
   scoreVal.textContent = "0";
   chainVal.textContent = "";
   startOverlay.hidden = true;
@@ -1092,10 +1467,11 @@ function drawBoard(now){
   }
   bctx.restore();
 
-  var popSet = {}, popP = 0;
+  var popSet = {}, crumbleSet = {}, popP = 0;
   if(mode==="popping"){
     popP = Math.min(1, (now-popStart)/POP_MS);
     poppingCells.forEach(function(m){ popSet[m.row+"_"+m.col] = true; });
+    crumbleCells.forEach(function(m){ crumbleSet[m.row+"_"+m.col] = true; });
   }
   // セル情報
   var I = [];
@@ -1104,11 +1480,22 @@ function drawBoard(now){
     for(var c1=0;c1<COLS;c1++){
       var cl = grid[r1][c1];
       if(!cl){ I[r1].push(null); continue; }
-      var fy = cl.fy || 0;
-      I[r1].push({r:r1, c:c1, cell:cl, vr:r1+fy, falling:fy<0, popping:!!popSet[r1+"_"+c1], comp:-1});
+      var fy = cl.fy || 0, hx = 0, hy = 0;
+      if(cl.hop){
+        var hp = Math.min(1, (now - cl.hop.t0)/cl.hop.dur);
+        hx = cl.hop.dx*(1-hp);
+        hy = cl.hop.dy*(1-hp) - HOP_H*Math.sin(Math.PI*hp);
+      }
+      I[r1].push({r:r1, c:c1, cell:cl, vr:r1+fy+hy, vc:c1+hx, falling:fy<0 || !!cl.hop,
+                  popping:!!popSet[r1+"_"+c1], crumble:!!crumbleSet[r1+"_"+c1], comp:-1});
     }
   }
-  function same(a, b){ return a && b && !a.falling && !b.falling && a.cell.c===b.cell.c && a.popping===b.popping; }
+  function same(a, b){
+    if(!a || !b) return false;
+    if(a.cell.big || b.cell.big) return a.cell.big === b.cell.big; // 大まんまるは4マスでひとかたまり
+    if(a.cell.stone || b.cell.stone) return false;                 // 石はつながらない
+    return !a.falling && !b.falling && a.cell.c===b.cell.c && a.popping===b.popping;
+  }
   // 同色でつながった塊ごとにまとめる
   var comps = [];
   for(var r2=0;r2<ROWS;r2++) for(var c2=0;c2<COLS;c2++){
@@ -1127,12 +1514,14 @@ function drawBoard(now){
     comps.push(g);
   }
   comps.forEach(function(g){
-    var bottom = -1e9, sumx = 0, term = 0, f = g.members[0];
+    var bottom = -1e9, sumx = 0, term = 0, f = g.members[0], warnAll = true;
     g.members.forEach(function(m){
       bottom = Math.max(bottom, m.vr*CELL);
-      sumx += m.c*CELL + CELL/2;
+      sumx += m.vc*CELL + CELL/2;
       var t = landTerm(m.cell, now);
       if(Math.abs(t) > Math.abs(term)) term = t;
+      m.warn = (m.cell.stone || m.cell.big) ? 0 : Math.max(0, (ageOf(m.cell) - (STONE_MS - WARN_MS))/WARN_MS);
+      if(!m.warn) warnAll = false;
       // 接続マスク
       var k = 0;
       if(m.r>0 && I[m.r-1][m.c] && I[m.r-1][m.c].comp===m.comp) k |= 1;
@@ -1141,16 +1530,31 @@ function drawBoard(now){
       if(m.c>0 && I[m.r][m.c-1] && I[m.r][m.c-1].comp===m.comp) k |= 8;
       m.mask = k;
     });
-    g.bottom = bottom; g.cx = sumx / g.members.length;
+    g.bottom = bottom; g.cx = sumx / g.members.length; g.ox = 0;
     var sy, sc = 1, alpha = 1;
     if(f.popping){
       sc = 1 + Math.sin(popP*Math.PI)*0.2;
       sy = popP < 0.35 ? 1 - popP*1.1 : 0.62 + (popP-0.35)*1.4;
       alpha = popP < 0.35 ? 1 : 1 - (popP-0.35)/0.65;
+    } else if(f.crumble){
+      // 石がぐらぐらして砕ける
+      sy = 1; sc = 1 - 0.2*popP;
+      g.ox = Math.sin(now/16)*CELL*0.05;
+      alpha = popP < 0.6 ? 1 : 1 - (popP-0.6)/0.4;
     } else if(f.falling){
       sy = 1.08;
+    } else if(f.cell.stone){
+      sy = 1 - term*0.5;
+      if(f.cell.stoneAt && now - f.cell.stoneAt < 260) sc = 1 + 0.1*Math.sin(Math.PI*(now - f.cell.stoneAt)/260);
     } else {
       sy = 1 + 0.022*Math.sin(now/1000*2*Math.PI*0.7 + f.r*0.9 + f.c*1.7) - term;
+      // 石になる直前はぷるぷるふるえる
+      if(warnAll) g.ox = Math.sin(now/22)*CELL*0.018*f.warn;
+    }
+    // 合体したての大まんまるは「ぷるん」とはずむ
+    if(f.cell.big && f.cell.bigAt && now - f.cell.bigAt < MERGE_MS){
+      g.mergeP = (now - f.cell.bigAt)/MERGE_MS;
+      sc *= 0.88 + 0.12*Math.min(1, g.mergeP/0.45) + 0.08*Math.sin(g.mergeP*Math.PI*2)*(1-g.mergeP);
     }
     g.sy = sc*sy; g.sx = sc/Math.sqrt(sy); g.alpha = alpha;
   });
@@ -1158,8 +1562,44 @@ function drawBoard(now){
   var all = [];
   comps.forEach(function(g){ g.members.forEach(function(m){ m.g = g; all.push(m); }); });
   all.sort(function(a, b){ return b.vr - a.vr; });
-  all.forEach(function(m){ if(!(m.mask & 4)) drawShadowG(bctx, m.c, m.vr, m.g); });
-  all.forEach(function(m){ drawTileG(bctx, COLORS[m.cell.c].sprite, m.mask, m.c, m.vr, m.g); });
+  all.forEach(function(m){
+    if(m.cell.big){ if(m.cell.bq === 2) drawShadowG(bctx, m.vc, m.vr, m.g, true); }
+    else if(m.cell.stone || !(m.mask & 4)) drawShadowG(bctx, m.vc, m.vr, m.g);
+  });
+  var nf = ATLAS_NF.ready;
+  all.forEach(function(m){
+    var cell = m.cell, g = m.g;
+    if(cell.big){
+      if(cell.bq !== 2) return; // 大まんまるは左下のマスの番に1枚絵で描く
+      var bi = BIG_IMG[COLORS[cell.c].sprite];
+      var fade = g.mergeP === undefined ? 1 : Math.min(1, g.mergeP/0.45);
+      if(fade < 1){
+        // 合体の途中: 4つのスライムから大まんまるへ
+        var g0 = {cx:g.cx, bottom:g.bottom, sx:1, sy:1, alpha:g.alpha*(1-fade), ox:0};
+        [[6,0,-1],[12,1,-1],[3,0,0],[9,1,0]].forEach(function(t){
+          drawTileG(bctx, COLORS[cell.c].sprite, t[0], m.vc + t[1], m.vr + t[2], g0, ATLAS);
+        });
+      }
+      if(bi.ready){
+        drawSpriteG(bctx, bi.img, 2, m.vc, m.vr, g, fade);
+        // 大まんまるはずっとにこにこ（ごきげん度は変わらず、石にもならない）
+        drawFaceG(bctx, 0, m.vc, m.vr, 2, {cx:g.cx, bottom:g.bottom, sx:g.sx, sy:g.sy, ox:g.ox, alpha:g.alpha*fade});
+      }
+      return;
+    }
+    if(cell.stone){
+      if(STONE_IMG.ready) drawSpriteG(bctx, STONE_IMG.img, 1, m.vc, m.vr, g);
+      return;
+    }
+    var mood = moodOf(cell), sprite = COLORS[cell.c].sprite;
+    if(mood === 1 || !nf){
+      drawTileG(bctx, sprite, m.mask, m.vc, m.vr, g, ATLAS); // ふつう: アトラスそのままの顔
+    } else {
+      drawTileG(bctx, sprite, m.mask, m.vc, m.vr, g, ATLAS_NF.img);
+      drawFaceG(bctx, mood, m.vc, m.vr, 1, g);
+    }
+    if(m.warn && STONE_IMG.ready) drawSpriteG(bctx, STONE_IMG.img, 1, m.vc, m.vr, g, 0.6*m.warn);
+  });
 
   // 操作中のペア
   if(mode==="falling" && cur){
@@ -1175,10 +1615,15 @@ function drawBoard(now){
     var cells = [[ax, ay, cur.axisColor, am], [sx2, sy2, cur.satColor, sm]];
     cells.sort(function(a, b){ return b[1] - a[1]; });
     cells.forEach(function(q){ if(!(q[3] & 4)) drawShadowG(bctx, q[0], q[1], pg); });
-    cells.forEach(function(q){ drawTileG(bctx, COLORS[q[2]].sprite, q[3], q[0], q[1], pg); });
+    cells.forEach(function(q){
+      drawTileG(bctx, COLORS[q[2]].sprite, q[3], q[0], q[1], pg, nf ? ATLAS_NF.img : ATLAS);
+      if(nf) drawFaceG(bctx, 0, q[0], q[1], 1, pg); // 落ちてくるスライムはごきげん
+    });
   }
+  drawParticles(bctx);
 }
 
+var STONE_CO = {fill:"#b5afab", dark:"#77716d", ready:false}; // 画像がないときの石の色
 function drawBoardOld(now){
   bctx.clearRect(0,0,boardCanvas.width, boardCanvas.height);
   // subtle grid dots
@@ -1208,7 +1653,7 @@ function drawBoardOld(now){
     for(var cc=0; cc<COLS; cc++){
       var cell = grid[rr][cc];
       if(!cell){ P[rr].push(null); continue; }
-      var co = COLORS[cell.c];
+      var co = cell.stone ? STONE_CO : COLORS[cell.c];
       var fy = cell.fy || 0;
       var vr = rr + fy;
       var key = rr+"_"+cc;
@@ -1292,10 +1737,14 @@ function drawNext(){
   if(!nxt) return;
   if(ATLAS_READY){
     var cs = 40, s = cs*1.3, x0 = nextCanvas.width/2 - s/2;
-    var j = nxt.axisColor === nxt.satColor;
+    var j = nxt.axisColor === nxt.satColor, nf = ATLAS_NF.ready, at = nf ? ATLAS_NF.img : ATLAS;
     nctx.imageSmoothingQuality = "high";
-    nctx.drawImage(ATLAS, (j?4:0)*ATS + AG, COLORS[nxt.axisColor].sprite*ATS + AG, AT, AT, x0, 2 - cs*0.15, s, s);
-    nctx.drawImage(ATLAS, (j?1:0)*ATS + AG, COLORS[nxt.satColor].sprite*ATS + AG, AT, AT, x0, 2 + cs - cs*0.15, s, s);
+    nctx.drawImage(at, (j?4:0)*ATS + AG, COLORS[nxt.axisColor].sprite*ATS + AG, AT, AT, x0, 2 - cs*0.15, s, s);
+    nctx.drawImage(at, (j?1:0)*ATS + AG, COLORS[nxt.satColor].sprite*ATS + AG, AT, AT, x0, 2 + cs - cs*0.15, s, s);
+    if(nf){
+      drawFace(nctx, 0, nextCanvas.width/2, 2 + cs*0.525, cs, 1, 1);
+      drawFace(nctx, 0, nextCanvas.width/2, 2 + cs*1.525, cs, 1, 1);
+    }
     return;
   }
   var cell = nextCanvas.width/2;
@@ -1317,8 +1766,10 @@ function loop(now){
   if(mode==="idle" || mode==="over"){ return; }
   var dt = Math.min(50, now - lastTick);
   lastTick = now;
+  gclock += dt;
 
   if(mode==="falling"){
+    petrify();
     fallTimer += dt;
     var interval = softDrop ? SOFT_MS : DROP_MS;
     if(fallTimer >= interval){
@@ -1331,9 +1782,13 @@ function loop(now){
     if(now - popStart >= POP_MS){
       finishPop();
     }
+  } else if(mode==="merging"){
+    if(now - mergeStart >= MERGE_MS) resolveGroups();
   } else if(mode==="dropping"){
-    if(updateDrops(dt)) resolveGroups();
+    var hopsDone = updateHops(now);
+    if(updateDrops(dt) && hopsDone) resolveGroups();
   }
+  updateParticles(dt);
   drawBoard(now);
   requestAnimationFrame(loop);
 }
