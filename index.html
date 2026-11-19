@@ -17,6 +17,27 @@ input,textarea,[contenteditable],[contenteditable] *{-webkit-user-select:text;us
 })();
 </script>
 <!-- PP-NOSELECT:END -->
+<!-- PP-NOZOOM:BEGIN ダブルタップでの画面拡大を止める（ピンチでの拡大はそのまま） -->
+<style>
+/* manipulation = スクロールとピンチはOK、ダブルタップ拡大だけなし（盤面の touch-action:none はそのまま優先） */
+html,body,*{touch-action:manipulation}
+</style>
+<script>
+(function(){
+  // touch-action が効かない古い iOS Safari 向けの予備: 素早い2回目のタップの既定動作（拡大）を止める
+  // ボタンや入力欄は除外（クリックが消えないように）。盤面の操作は pointer イベントなので影響しない
+  var last=0,lx=0,ly=0;
+  var skip=function(t){return t&&t.closest&&t.closest('button,a,input,textarea,select,label,[contenteditable]')};
+  addEventListener('touchend',function(e){
+    var t=e.changedTouches&&e.changedTouches[0],now=Date.now();
+    if(!t)return;
+    var near=Math.abs(t.clientX-lx)<40&&Math.abs(t.clientY-ly)<40;
+    if(now-last<350&&near&&e.touches.length===0&&!skip(e.target)&&e.cancelable)e.preventDefault();
+    last=now;lx=t.clientX;ly=t.clientY;
+  },{capture:true,passive:false});
+})();
+</script>
+<!-- PP-NOZOOM:END -->
 <style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>まんまるチェイン</title>
 <style>
