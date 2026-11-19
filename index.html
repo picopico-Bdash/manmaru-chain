@@ -1,4 +1,4 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <!-- PP-NOSELECT:BEGIN 長押しの文字選択・コピーメニュー・画像メニューを止める -->
 <style>
 html,body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
@@ -17,24 +17,30 @@ input,textarea,[contenteditable],[contenteditable] *{-webkit-user-select:text;us
 })();
 </script>
 <!-- PP-NOSELECT:END -->
-<!-- PP-NOZOOM:BEGIN ダブルタップでの画面拡大を止める（ピンチでの拡大はそのまま） -->
+<!-- PP-NOZOOM:BEGIN ゲーム操作で画面が拡大したり、ルーペ（虫めがね）が出たりしないようにする -->
 <style>
-/* manipulation = スクロールとピンチはOK、ダブルタップ拡大だけなし（盤面の touch-action:none はそのまま優先） */
+/* ダブルタップ拡大なし（スクロールはOK）。盤面の touch-action:none はこれより優先 */
 html,body,*{touch-action:manipulation}
+/* スマホ表示はスクロールしない1画面なので、ブラウザのタッチ動作（拡大・スクロール）をすべて止める */
+html.mobile,html.mobile body,html.mobile *{touch-action:none}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 </style>
 <script>
 (function(){
-  // touch-action が効かない古い iOS Safari 向けの予備: 素早い2回目のタップの既定動作（拡大）を止める
-  // ボタンや入力欄は除外（クリックが消えないように）。盤面の操作は pointer イベントなので影響しない
-  var last=0,lx=0,ly=0;
-  var skip=function(t){return t&&t.closest&&t.closest('button,a,input,textarea,select,label,[contenteditable]')};
-  addEventListener('touchend',function(e){
-    var t=e.changedTouches&&e.changedTouches[0],now=Date.now();
-    if(!t)return;
-    var near=Math.abs(t.clientX-lx)<40&&Math.abs(t.clientY-ly)<40;
-    if(now-last<350&&near&&e.touches.length===0&&!skip(e.target)&&e.cancelable)e.preventDefault();
-    last=now;lx=t.clientX;ly=t.clientY;
-  },{capture:true,passive:false});
+  var root=document.documentElement;
+  var editable=function(t){return t&&t.closest&&t.closest('input,textarea,select,[contenteditable]')};
+  var opt={capture:true,passive:false};
+  // 止めるのはスマホ表示（タッチ端末・せまい画面）のときだけ。PCのトラックパッドでの拡大などはそのまま
+  var game=function(e){return root.classList.contains('mobile')&&e.cancelable!==false&&!editable(e.target)};
+  // タッチの既定動作（ダブルタップ拡大・ピンチ拡大・長押しのルーペや文字選択）を止める
+  // ゲームの操作（盤面・ボタン）は pointer イベントで動くので影響しない
+  addEventListener('touchstart',function(e){if(game(e))e.preventDefault()},opt);
+  addEventListener('touchmove',function(e){if(game(e))e.preventDefault()},opt);
+  // iOS Safari のピンチ拡大（gesture イベント）
+  ['gesturestart','gesturechange','gestureend'].forEach(function(n){
+    addEventListener(n,function(e){if(game(e))e.preventDefault()},opt);
+  });
+  addEventListener('dblclick',function(e){if(game(e))e.preventDefault()},opt);
 })();
 </script>
 <!-- PP-NOZOOM:END -->
@@ -310,7 +316,7 @@ button.ctl{
   user-select:none;
   -webkit-tap-highlight-color:transparent;
 }
-button.ctl:active{
+button.ctl:active,button.ctl.is-pressed{
   transform:translateY(3px);
   box-shadow:0 1px 0 var(--panel-edge);
 }
@@ -325,7 +331,7 @@ button.primary{
   box-shadow:0 4px 0 var(--c-pink-d);
   cursor:pointer;
 }
-button.primary:active{transform:translateY(3px);box-shadow:0 1px 0 var(--c-pink-d);}
+button.primary:active,button.primary.is-pressed{transform:translateY(3px);box-shadow:0 1px 0 var(--c-pink-d);}
 .hint{
   font-size:12px;
   color:var(--ink-soft);
@@ -388,7 +394,7 @@ html.mobile button.ctl{
   width:auto;
   height:58px;
   font-size:24px;
-  touch-action:manipulation;
+  touch-action:none;
 }
 html.mobile button.ctl.drop{background:var(--accent);color:#fff;box-shadow:0 4px 0 var(--c-pink-d);}
 .touch-hint{display:none;}
@@ -1851,6 +1857,13 @@ bindHold(document.getElementById("btnRight"), function(){ tryMove(1); }, true);
 bindHold(document.getElementById("btnRotL"), function(){ tryRotate(-1); });
 bindHold(document.getElementById("btnRotR"), function(){ tryRotate(1); });
 bindHold(document.getElementById("btnDrop"), function(){ hardDrop(); });
+// 押している間の見た目。スマホではタッチの既定動作を止めていて :active が付かないことがあるので、自分で付ける
+Array.prototype.forEach.call(document.querySelectorAll("button.ctl, button.primary"), function(b){
+  b.addEventListener("pointerdown", function(){ b.classList.add("is-pressed"); });
+  ["pointerup","pointercancel","pointerleave","lostpointercapture"].forEach(function(ev){
+    b.addEventListener(ev, function(){ b.classList.remove("is-pressed"); });
+  });
+});
 var downBtn = document.getElementById("btnDown");
 downBtn.addEventListener("pointerdown", function(e){ e.preventDefault(); try{ downBtn.setPointerCapture(e.pointerId); }catch(_){} softDrop = true; });
 ["pointerup","pointercancel","lostpointercapture"].forEach(function(ev){ downBtn.addEventListener(ev, function(){ softDrop = false; }); });
@@ -1919,8 +1932,17 @@ applyLayout();
 window.addEventListener("resize", applyLayout);
 window.addEventListener("orientationchange", function(){ setTimeout(applyLayout, 200); });
 
-document.getElementById("startBtn").addEventListener("click", startGame);
-document.getElementById("retryBtn").addEventListener("click", startGame);
+// 「はじめる」「もう一度」: スマホ表示では拡大防止のため touchstart を止めていて click が来ないので、
+// 指を離したとき（touchend。音を鳴らせるユーザー操作として扱われる）でも開始する。二重に始まらないようにする
+function startFromButton(e){
+  if(e.type === "touchend" && e.cancelable) e.preventDefault();
+  if(mode === "idle" || mode === "over") startGame();
+}
+["startBtn","retryBtn"].forEach(function(id){
+  var b = document.getElementById(id);
+  b.addEventListener("click", startFromButton);
+  b.addEventListener("touchend", startFromButton);
+});
 
 // ---------- init ----------
 best = loadBest();
